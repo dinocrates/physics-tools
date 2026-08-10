@@ -143,6 +143,32 @@
     color: var(--cyan);
     width: 100%;
   }
+
+  /* ---------- map panel ---------- */
+  .map-panel {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .map-panel img {
+    display: block;
+    max-width: 100%;
+    max-height: 22rem;
+    width: auto;
+    height: auto;
+    border: 2px solid var(--line-bright);
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+  .map-caption {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--cyan);
+    font-weight: 700;
+  }
   .btn-ghost {
     flex: none;
     background: var(--surface-2);
@@ -366,6 +392,11 @@
     <button class="btn-ghost" id="resetBtn" type="button">&#8635; Reset guesses</button>
   </section>
 
+  <section class="map-panel panel-8bit" id="mapPanel" aria-label="Map" style="display:none;">
+    <img id="mapImage" alt="" />
+    <div class="map-caption" id="mapCaption"></div>
+  </section>
+
   <section class="stack-panel panel-8bit" aria-label="Estimation chain">
     <div class="factor-stack" id="factorStack"></div>
     <div id="customControls" style="display:none; margin-top: 1rem;">
@@ -398,12 +429,14 @@
   const PROBLEMS = [
     {
       id: 'donuts',
-      chip: 'Donut shops',
-      question: "How many donut shops does a city of about 2.7 million people need?",
+      chip: 'Temecula Donuts',
+      question: "How many donut shops does Temecula, CA (population ≈ 110,000) need?",
       resultUnit: 'donut shops',
-      reference: "Real cities this size typically support a few hundred to a couple thousand donut and bakery shops — if your estimate lands anywhere in that neighborhood, the method worked.",
+      reference: "A city Temecula's size realistically supports a few dozen donut and bakery shops — if your estimate lands somewhere in the tens, the method worked. (Compare that to a city 25x bigger, like Chicago, which needs an estimate in the hundreds to thousands — try dragging the population slider up to see the answer scale with it.)",
+      mapImage: null, // set to 'fermi-estimation-assets/temecula-map.png' (or similar) once the asset exists
+      mapCaption: 'Temecula, CA',
       factors: [
-        { id: 'pop', label: 'People in the city', unit: 'people', kind: 'estimate', op: 'mul', value: 2700000, min: 100000, max: 10000000, isLog: true, rationale: 'Start from a city you can picture — this is roughly Chicago-sized.' },
+        { id: 'pop', label: 'People in Temecula', unit: 'people', kind: 'estimate', op: 'mul', value: 110000, min: 20000, max: 3000000, isLog: true, rationale: "Temecula's population is about 110,000 — drag this up to see how the estimate scales for a bigger city." },
         { id: 'frac', label: 'Fraction who eat donuts regularly', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.35, min: 0.02, max: 1, isLog: false, rationale: "Doesn't need to be exact — just plausible." },
         { id: 'rate', label: 'Donuts per person per week', unit: 'donuts/person/wk', kind: 'estimate', op: 'mul', value: 3, min: 0.5, max: 10, isLog: false, rationale: 'A donut every couple of days for a regular eater.' },
         { id: 'cap', label: 'Donuts a shop sells per week', unit: 'donuts/wk/shop', kind: 'estimate', op: 'div', value: 3000, min: 300, max: 20000, isLog: true, rationale: 'Roughly a few hundred donuts a day, most days.' },
@@ -529,6 +562,9 @@
 
   const problemChipsHost = document.getElementById('problemChips');
   const questionText = document.getElementById('questionText');
+  const mapPanel = document.getElementById('mapPanel');
+  const mapImage = document.getElementById('mapImage');
+  const mapCaption = document.getElementById('mapCaption');
   const factorStackHost = document.getElementById('factorStack');
   const customControls = document.getElementById('customControls');
   const addFactorBtn = document.getElementById('addFactorBtn');
@@ -574,6 +610,17 @@
       questionText.textContent = currentProblem.question;
       customControls.style.display = 'none';
     }
+
+    if (currentProblem.mapImage) {
+      mapImage.src = currentProblem.mapImage;
+      mapImage.alt = currentProblem.mapCaption || '';
+      mapCaption.textContent = currentProblem.mapCaption || '';
+      mapPanel.style.display = 'flex';
+    } else {
+      mapImage.removeAttribute('src');
+      mapPanel.style.display = 'none';
+    }
+
     renderStack();
   }
 
