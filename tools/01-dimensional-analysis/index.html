@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dimensional Analysis Lab</title>
+<meta name="description" content="Animated factor-label unit conversion tool for intro physics — enter a quantity and target units and watch the conversion chain build with units canceling live." />
+<style>
+  :root {
+    --bg: #EBF0F2;
+    --surface: #FFFFFF;
+    --surface-2: #F6FAFB;
+    --ink: #16283A;
+    --ink-soft: #4C6478;
+    --ink-faint: #7C93A3;
+    --line: #C9D6DC;
+    --line-strong: #A9BCC6;
+    --accent: #12688F;
+    --accent-ink: #FFFFFF;
+    --accent-warm: #B96B15;
+    --accent-warm-soft: #F3D9AE;
+    --success: #1F7A5C;
+    --success-soft: #CDE9DD;
+    --danger: #A8402A;
+    --danger-soft: #F6DCD3;
+    --grid-line: rgba(22, 40, 58, 0.07);
+    --shadow: 0 1px 2px rgba(22,40,58,0.06), 0 8px 24px -12px rgba(22,40,58,0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D2131;
+      --surface: #143349;
+      --surface-2: #102839;
+      --ink: #E9F2F7;
+      --ink-soft: #9FB9CB;
+      --ink-faint: #6E8CA0;
+      --line: #2C4C63;
+      --line-strong: #3D6280;
+      --accent: #66B7E3;
+      --accent-ink: #072433;
+      --accent-warm: #F0A93E;
+      --accent-warm-soft: #4A3A1C;
+      --success: #57C89B;
+      --success-soft: #17392E;
+      --danger: #E8836A;
+      --danger-soft: #3E2420;
+      --grid-line: rgba(233, 242, 247, 0.06);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D2131;
+    --surface: #143349;
+    --surface-2: #102839;
+    --ink: #E9F2F7;
+    --ink-soft: #9FB9CB;
+    --ink-faint: #6E8CA0;
+    --line: #2C4C63;
+    --line-strong: #3D6280;
+    --accent: #66B7E3;
+    --accent-ink: #072433;
+    --accent-warm: #F0A93E;
+    --accent-warm-soft: #4A3A1C;
+    --success: #57C89B;
+    --success-soft: #17392E;
+    --danger: #E8836A;
+    --danger-soft: #3E2420;
+    --grid-line: rgba(233, 242, 247, 0.06);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    padding: 2.25rem 1.25rem 4rem;
+  }
+  .page {
+    max-width: 920px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  h1, h2, h3 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.25rem;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  header.masthead h1 { font-size: 1.9rem; }
+  header.masthead p { margin: 0.15rem 0 0; color: var(--ink-soft); max-width: 62ch; font-size: 0.97rem; }
+
+  /* ---------- console (input) ---------- */
+  .console {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    padding: 1.25rem 1.35rem 1.4rem;
+  }
+  .console-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .field label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  .field input[type="text"], .field input[type="number"] {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 1.05rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 4px;
+    border: 1.5px solid var(--line-strong);
+    background: var(--surface-2);
+    color: var(--ink);
+    width: 100%;
+  }
+  .field input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  #valInput { width: 6.5rem; }
+  #fromInput, #toInput { width: 9rem; }
+  .arrow-sep {
+    color: var(--ink-faint);
+    font-size: 1.3rem;
+    padding-bottom: 0.55rem;
+    user-select: none;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 4px;
+    padding: 0.6rem 1.15rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-primary:focus-visible, .btn-ghost:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-ghost {
+    background: transparent;
+    border: 1.5px solid var(--line-strong);
+    color: var(--ink-soft);
+    border-radius: 4px;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost:disabled { opacity: 0.45; cursor: default; }
+
+  .console-sub {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.9rem;
+    flex-wrap: wrap;
+  }
+  .sigfig-field {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+  .sigfig-field select {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+    border: 1.5px solid var(--line-strong);
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
+  .error-msg {
+    margin-top: 0.75rem;
+    background: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    border-radius: 4px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.88rem;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  /* ---------- examples ---------- */
+  .examples {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .examples span.label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    font-weight: 600;
+    margin-right: 0.15rem;
+  }
+  .chip {
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    color: var(--ink-soft);
+    border-radius: 100px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- stage ---------- */
+  .stage-wrap {
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 100% 28px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 28px 100%,
+      var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 1.5rem 1rem;
+    min-height: 9rem;
+    display: flex;
+    align-items: center;
+  }
+  .stage-empty {
+    color: var(--ink-faint);
+    font-size: 0.92rem;
+    margin: 0 auto;
+    text-align: center;
+    max-width: 40ch;
+  }
+  .tape {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    overflow-x: auto;
+    width: 100%;
+    padding: 0.5rem 0.25rem 0.9rem;
+  }
+  .tape:focus-visible { outline: 2px solid var(--accent); }
+
+  .op {
+    color: var(--ink-faint);
+    font-size: 1.2rem;
+    flex: none;
+    opacity: 0;
+    animation: fadein 0.35s ease forwards;
+  }
+
+  .block {
+    flex: none;
+    background: var(--surface);
+    border: 1.5px solid var(--line-strong);
+    border-radius: 5px;
+    padding: 0.5rem 0.75rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transform: translateY(6px);
+    animation: blockIn 0.4s cubic-bezier(.2,.7,.3,1) forwards;
+    position: relative;
+    min-width: 3.5rem;
+  }
+  .block.given { border-color: var(--accent); }
+  .block .exp-badge {
+    position: absolute;
+    top: -0.55rem;
+    right: -0.45rem;
+    background: var(--accent-warm);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 100px;
+    width: 1.3rem;
+    height: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.3rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 1.02rem;
+  }
+  .row .u { color: var(--ink-soft); font-size: 0.92rem; transition: color 0.25s ease, opacity 0.25s ease; }
+  .row .u.canceled {
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+    text-decoration-color: var(--accent-warm);
+    color: var(--accent-warm);
+    opacity: 0.7;
+  }
+  .frac-bar { border-top: 1.5px solid var(--ink-faint); margin: 0.28rem 0; }
+  .no-den { padding-top: 0.62rem; padding-bottom: 0.62rem; }
+
+  .block.final {
+    border-color: var(--success);
+    background: var(--success-soft);
+    padding: 0.65rem 1.1rem;
+  }
+  .block.final .row { font-size: 1.25rem; font-weight: 700; color: var(--ink); }
+  .block.final .row .u { color: var(--success); font-weight: 700; }
+  .block.final::before {
+    content: "Final answer";
+    position: absolute;
+    top: -1.1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--success);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  @keyframes blockIn {
+    from { opacity: 0; transform: translateY(6px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+  .stage-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+  }
+  .stage-controls .spacer { flex: 1; }
+
+  /* ---------- ledger ---------- */
+  .ledger {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    display: none;
+  }
+  .ledger.show { display: block; }
+  .ledger h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-family: inherit; margin-bottom: 0.55rem; }
+  .ledger ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+  .ledger li {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    animation: fadein 0.3s ease forwards;
+  }
+  .ledger li .mult { color: var(--accent-warm); font-weight: 700; min-width: 1.1rem; }
+  .ledger li.final-line { color: var(--ink); font-weight: 700; border-top: 1px dashed var(--line-strong); padding-top: 0.4rem; margin-top: 0.15rem; }
+
+  /* ---------- legend ---------- */
+  details.legend {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.85rem 1.1rem;
+  }
+  details.legend summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--ink);
+  }
+  details.legend summary:focus-visible { outline: 2px solid var(--accent); }
+  .legend-body { margin-top: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; }
+  .legend-fam { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+  .legend-fam .fam-name { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 700; min-width: 5.5rem; }
+  .legend-fam .fam-units { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85rem; color: var(--ink-soft); }
+  .legend-note { font-size: 0.82rem; color: var(--ink-faint); margin-top: 0.3rem; }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    padding-top: 0.5rem;
+  }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .block, .op, .ledger li { animation-duration: 0.01ms !important; }
+  }
+
+  @media (max-width: 600px) {
+    header.masthead h1 { font-size: 1.5rem; }
+    .console-row { flex-direction: column; align-items: stretch; }
+    #fromInput, #toInput, #valInput { width: 100%; }
+    .arrow-sep { align-self: center; padding-bottom: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow">Unit 1 &middot; Measurement &amp; Dimensional Analysis</div>
+    <h1>Dimensional Analysis Lab</h1>
+    <p>Type a quantity and a target unit, hit Convert, and watch the factor-label chain build itself &mdash; one conversion fact at a time, with matching units canceling just like on the board.</p>
+  </header>
+
+  <section class="console" aria-label="Conversion input">
+    <div class="console-row">
+      <div class="field">
+        <label for="valInput">Value</label>
+        <input type="number" id="valInput" value="60" step="any" class="mono" />
+      </div>
+      <div class="field">
+        <label for="fromInput">From units</label>
+        <input type="text" id="fromInput" value="mi/hr" class="mono" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="arrow-sep" aria-hidden="true">&rarr;</div>
+      <div class="field">
+        <label for="toInput">To units</label>
+        <input type="text" id="toInput" value="m/s" class="mono" autocomplete="off" spellcheck="false" />
+      </div>
+      <button class="btn-primary" id="convertBtn">Convert</button>
+    </div>
+    <div class="console-sub">
+      <div class="examples" id="examplesRow">
+        <span class="label">Try:</span>
+      </div>
+      <div class="sigfig-field">
+        <label for="sigfigSelect">Round final answer to</label>
+        <select id="sigfigSelect" class="mono">
+          <option value="2">2 sig figs</option>
+          <option value="3" selected>3 sig figs</option>
+          <option value="4">4 sig figs</option>
+          <option value="5">5 sig figs</option>
+          <option value="6">6 sig figs</option>
+        </select>
+      </div>
+    </div>
+    <div class="error-msg" id="errorMsg" role="alert"></div>
+  </section>
+
+  <section class="stage-wrap" aria-label="Conversion animation">
+    <div class="stage-empty" id="stageEmpty">Enter a value and units above, then press Convert to see the chain.</div>
+    <div class="tape" id="tape" tabindex="-1" style="display:none;"></div>
+  </section>
+  <div class="stage-controls" id="stageControls" style="display:none;">
+    <button class="btn-ghost" id="skipBtn">Skip animation</button>
+    <button class="btn-ghost" id="replayBtn">&#8635; Replay</button>
+    <div class="spacer"></div>
+    <span class="sr-only" id="liveResult" aria-live="polite"></span>
+  </div>
+
+  <section class="ledger" id="ledger" aria-label="Arithmetic ledger">
+    <h3>Running the numbers</h3>
+    <ol id="ledgerList"></ol>
+  </section>
+
+  <details class="legend">
+    <summary>Supported units</summary>
+    <div class="legend-body">
+      <div class="legend-fam"><span class="fam-name">Length</span><span class="fam-units">mm &middot; cm &middot; m &middot; km &middot; in &middot; ft &middot; yd &middot; mi</span></div>
+      <div class="legend-fam"><span class="fam-name">Mass</span><span class="fam-units">mg &middot; g &middot; kg &middot; oz &middot; lb &middot; ton</span></div>
+      <div class="legend-fam"><span class="fam-name">Time</span><span class="fam-units">ms &middot; s &middot; min &middot; hr &middot; day &middot; week &middot; year</span></div>
+      <div class="legend-fam"><span class="fam-name">Volume</span><span class="fam-units">mL &middot; L &middot; tsp &middot; tbsp &middot; floz &middot; cup &middot; pt &middot; qt &middot; gal</span></div>
+      <p class="legend-note">Build compound units with <code class="mono">*</code>, <code class="mono">/</code> and <code class="mono">^</code> &mdash; e.g. <code class="mono">g/cm^3</code>, <code class="mono">km/hr</code>, <code class="mono">ft^3</code>. Full words work too (<code class="mono">miles</code>, <code class="mono">hours</code>), and <code class="mono">mph</code>/<code class="mono">mps</code>/<code class="mono">kph</code>/<code class="mono">fps</code> are shortcuts. One unit per quantity type per side; liter-based volumes (L, gal, cup&hellip;) don&rsquo;t yet bridge to cubic-length units (cm&sup3;, ft&sup3;).</p>
+    </div>
+  </details>
+
+  <footer>Built for dimensional analysis practice &middot; conversion facts are the standard textbook chain, not shortcuts</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ ENGINE ============
+  const GRAPH = {
+    length: [
+      { from: 'm',  to: 'cm', factor: 100 },
+      { from: 'km', to: 'm',  factor: 1000 },
+      { from: 'cm', to: 'mm', factor: 10 },
+      { from: 'in', to: 'cm', factor: 2.54 },
+      { from: 'ft', to: 'in', factor: 12 },
+      { from: 'yd', to: 'ft', factor: 3 },
+      { from: 'mi', to: 'ft', factor: 5280 },
+    ],
+    mass: [
+      { from: 'kg',  to: 'g',  factor: 1000 },
+      { from: 'g',   to: 'mg', factor: 1000 },
+      { from: 'lb',  to: 'oz', factor: 16 },
+      { from: 'kg',  to: 'lb', factor: 2.204623 },
+      { from: 'ton', to: 'lb', factor: 2000 },
+    ],
+    time: [
+      { from: 's',    to: 'ms',  factor: 1000 },
+      { from: 'min',  to: 's',   factor: 60 },
+      { from: 'hr',   to: 'min', factor: 60 },
+      { from: 'day',  to: 'hr',  factor: 24 },
+      { from: 'week', to: 'day', factor: 7 },
+      { from: 'year', to: 'day', factor: 365 },
+    ],
+    volume: [
+      { from: 'L',    to: 'mL',   factor: 1000 },
+      { from: 'gal',  to: 'L',    factor: 3.785411784 },
+      { from: 'gal',  to: 'qt',   factor: 4 },
+      { from: 'qt',   to: 'pt',   factor: 2 },
+      { from: 'pt',   to: 'cup',  factor: 2 },
+      { from: 'cup',  to: 'floz', factor: 8 },
+      { from: 'floz', to: 'tbsp', factor: 2 },
+      { from: 'tbsp', to: 'tsp',  factor: 3 },
+    ],
+  };
+
+  const ALIASES = {
+    length: { mm:'mm',millimeter:'mm',millimeters:'mm', cm:'cm',centimeter:'cm',centimeters:'cm',
+      m:'m',meter:'m',meters:'m',metre:'m',metres:'m', km:'km',kilometer:'km',kilometers:'km',
+      in:'in',inch:'in',inches:'in', ft:'ft',foot:'ft',feet:'ft', yd:'yd',yard:'yd',yards:'yd',
+      mi:'mi',mile:'mi',miles:'mi' },
+    mass: { mg:'mg',milligram:'mg',milligrams:'mg', g:'g',gram:'g',grams:'g',
+      kg:'kg',kilogram:'kg',kilograms:'kg', oz:'oz',ounce:'oz',ounces:'oz',
+      lb:'lb',lbs:'lb',pound:'lb',pounds:'lb', ton:'ton',tons:'ton' },
+    time: { ms:'ms',millisecond:'ms',milliseconds:'ms', s:'s',sec:'s',secs:'s',second:'s',seconds:'s',
+      min:'min',mins:'min',minute:'min',minutes:'min', hr:'hr',hrs:'hr',hour:'hr',hours:'hr',h:'hr',
+      day:'day',days:'day', week:'week',weeks:'week',wk:'week', year:'year',years:'year',yr:'year' },
+    volume: { ml:'mL',milliliter:'mL',milliliters:'mL', l:'L',liter:'L',liters:'L',litre:'L',litres:'L',
+      tsp:'tsp',teaspoon:'tsp',teaspoons:'tsp', tbsp:'tbsp',tablespoon:'tbsp',tablespoons:'tbsp',
+      floz:'floz', cup:'cup',cups:'cup', pt:'pt',pint:'pt',pints:'pt', qt:'qt',quart:'qt',quarts:'qt',
+      gal:'gal',gallon:'gal',gallons:'gal' },
+  };
+
+  const UNIT_TO_FAMILY = {};
+  for (const fam of Object.keys(ALIASES)) {
+    for (const canon of new Set(Object.values(ALIASES[fam]))) UNIT_TO_FAMILY[canon] = fam;
+  }
+
+  const WHOLE_EXPR_ALIASES = {
+    mph: { num: [{symbol:'mi',exp:1}], den: [{symbol:'hr',exp:1}] },
+    mps: { num: [{symbol:'m',exp:1}],  den: [{symbol:'s',exp:1}] },
+    kph: { num: [{symbol:'km',exp:1}], den: [{symbol:'hr',exp:1}] },
+    fps: { num: [{symbol:'ft',exp:1}], den: [{symbol:'s',exp:1}] },
+  };
+
+  class ConversionError extends Error {}
+
+  function resolveSymbol(raw) {
+    const key = raw.toLowerCase();
+    for (const fam of Object.keys(ALIASES)) {
+      if (ALIASES[fam][key]) return ALIASES[fam][key];
+    }
+    throw new ConversionError('Unknown unit "' + raw + '"');
+  }
+
+  function parseToken(t) {
+    const m = t.match(/^([a-zA-Z]+)(\^(-?\d+))?$/);
+    if (!m) throw new ConversionError('Can’t parse unit "' + t + '"');
+    return { symbol: resolveSymbol(m[1]), exp: m[3] ? parseInt(m[3], 10) : 1 };
+  }
+
+  function tokenizeFactor(seg) {
+    return seg.split('*').map(function(s){return s.trim();}).filter(Boolean).map(parseToken);
+  }
+
+  function parseUnitExpr(str) {
+    str = str.trim();
+    if (!str) throw new ConversionError('Enter a unit.');
+    if (WHOLE_EXPR_ALIASES[str.toLowerCase()]) return WHOLE_EXPR_ALIASES[str.toLowerCase()];
+    const parts = str.split('/').map(function(s){return s.trim();}).filter(Boolean);
+    if (parts.length === 0) throw new ConversionError('Empty unit expression');
+    const num = tokenizeFactor(parts[0]);
+    const den = [];
+    for (let i = 1; i < parts.length; i++) den.push.apply(den, tokenizeFactor(parts[i]));
+    return { num: num, den: den };
+  }
+
+  function bfsPath(family, fromSym, toSym) {
+    if (fromSym === toSym) return [];
+    const edges = GRAPH[family];
+    const adj = {};
+    for (const e of edges) {
+      (adj[e.from] || (adj[e.from] = [])).push({ to: e.to, edge: e });
+      (adj[e.to] || (adj[e.to] = [])).push({ to: e.from, edge: e });
+    }
+    const visited = new Set([fromSym]);
+    const queue = [[fromSym, []]];
+    while (queue.length) {
+      const cur = queue.shift();
+      const node = cur[0], path = cur[1];
+      for (const hop of (adj[node] || [])) {
+        if (visited.has(hop.to)) continue;
+        visited.add(hop.to);
+        const newPath = path.concat([{ edge: hop.edge, before: node, after: hop.to }]);
+        if (hop.to === toSym) return newPath;
+        queue.push([hop.to, newPath]);
+      }
+    }
+    return null;
+  }
+
+  function buildSlotMap(tokens) {
+    const map = {};
+    for (const t of tokens) {
+      const fam = UNIT_TO_FAMILY[t.symbol];
+      if (map[fam]) throw new ConversionError('Only one unit per quantity type is supported (saw two ' + fam + ' units).');
+      map[fam] = t;
+    }
+    return map;
+  }
+
+  function planConversion(srcExpr, tgtExpr) {
+    const srcNum = buildSlotMap(srcExpr.num), srcDen = buildSlotMap(srcExpr.den);
+    const tgtNum = buildSlotMap(tgtExpr.num), tgtDen = buildSlotMap(tgtExpr.den);
+    const sig = function(o){ return JSON.stringify(Object.keys(o).sort()); };
+    if (sig(srcNum) !== sig(tgtNum) || sig(srcDen) !== sig(tgtDen)) {
+      throw new ConversionError('“' + exprToString(srcExpr) + '” and “' + exprToString(tgtExpr) + '” aren’t the same kind of quantity, so they can’t be converted.');
+    }
+    const steps = [];
+    function process(srcSlots, tgtSlots, pos) {
+      for (const fam of Object.keys(srcSlots)) {
+        const a = srcSlots[fam], b = tgtSlots[fam];
+        if (a.exp !== b.exp) throw new ConversionError('Exponents don’t match for ' + fam + ' units.');
+        if (a.symbol === b.symbol) continue;
+        const path = bfsPath(fam, a.symbol, b.symbol);
+        if (!path) throw new ConversionError('No known conversion path from ' + a.symbol + ' to ' + b.symbol + '.');
+        for (const hop of path) steps.push(Object.assign({}, hop, { exp: a.exp, pos: pos, fam: fam }));
+      }
+    }
+    process(srcNum, tgtNum, 'num');
+    process(srcDen, tgtDen, 'den');
+    return steps;
+  }
+
+  function hopBlock(step) {
+    const edge = step.edge, before = step.before, after = step.after, exp = step.exp, pos = step.pos;
+    const posAfter = pos;
+    const posCancel = pos === 'num' ? 'den' : 'num';
+    const valFor = function(unit) { return unit === edge.from ? 1 : edge.factor; };
+    const items = {};
+    items[posAfter] = { value: valFor(after), unit: after };
+    items[posCancel] = { value: valFor(before), unit: before };
+    const multiplier = Math.pow(items.num.value / items.den.value, exp);
+    return { num: items.num, den: items.den, exp: exp, multiplier: multiplier, pos: pos, fam: step.fam, before: before, after: after };
+  }
+
+  function convert(value, fromStr, toStr) {
+    const src = parseUnitExpr(fromStr), tgt = parseUnitExpr(toStr);
+    const steps = planConversion(src, tgt);
+    let running = value;
+    const blocks = [];
+    for (const step of steps) {
+      const b = hopBlock(step);
+      running *= b.multiplier;
+      blocks.push(Object.assign({}, b, { runningAfter: running }));
+    }
+    return { src: src, tgt: tgt, steps: blocks, result: running };
+  }
+
+  // ============ FORMATTING ============
+  const SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+  function toSuperscript(n) { return String(n).split('').map(function(c){ return SUP[c] !== undefined ? SUP[c] : c; }).join(''); }
+  function unitLabel(symbol, exp) { return exp === 1 ? symbol : symbol + toSuperscript(exp); }
+
+  function exprToString(expr) {
+    const fmt = function(tokens) { return tokens.map(function(t){ return unitLabel(t.symbol, t.exp); }).join('·'); };
+    const n = fmt(expr.num), d = fmt(expr.den);
+    return d ? n + '/' + d : n;
+  }
+
+  function formatSigFigs(value, sig) {
+    if (!isFinite(value)) return String(value);
+    if (value === 0) return '0';
+    const sign = value < 0 ? '-' : '';
+    value = Math.abs(value);
+    const exp = Math.floor(Math.log10(value));
+    if (exp < -3 || exp >= 9) {
+      const mantissa = (value / Math.pow(10, exp)).toPrecision(sig);
+      return sign + mantissa + '×10' + toSuperscript(exp);
+    }
+    const decimals = Math.max(0, sig - 1 - exp);
+    let s = value.toFixed(decimals);
+    const parts = s.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return sign + parts.join('.');
+  }
+
+  function formatRunning(value) {
+    // shorter, fixed-ish format for intermediate ledger readability
+    if (Math.abs(value) >= 1e7 || (Math.abs(value) < 1e-4 && value !== 0)) return formatSigFigs(value, 5);
+    const s = value.toFixed(Math.abs(value) < 1 ? 5 : Math.abs(value) < 100 ? 3 : 1);
+    const parts = s.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  }
+
+  function formatGiven(value) {
+    const parts = String(value).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  }
+
+  // Conversion-fact constants (e.g. 3.785411784) are stated the way a textbook would —
+  // rounded for readability — while the underlying arithmetic still uses full precision.
+  function formatFactor(value) {
+    if (Number.isInteger(value)) return formatGiven(value);
+    let s = value.toPrecision(6);
+    if (s.indexOf('e') === -1 && s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    const parts = s.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  }
+
+  // ============ UI ============
+  const valInput = document.getElementById('valInput');
+  const fromInput = document.getElementById('fromInput');
+  const toInput = document.getElementById('toInput');
+  const convertBtn = document.getElementById('convertBtn');
+  const errorMsg = document.getElementById('errorMsg');
+  const stageEmpty = document.getElementById('stageEmpty');
+  const tape = document.getElementById('tape');
+  const stageControls = document.getElementById('stageControls');
+  const skipBtn = document.getElementById('skipBtn');
+  const replayBtn = document.getElementById('replayBtn');
+  const ledger = document.getElementById('ledger');
+  const ledgerList = document.getElementById('ledgerList');
+  const sigfigSelect = document.getElementById('sigfigSelect');
+  const liveResult = document.getElementById('liveResult');
+  const examplesRow = document.getElementById('examplesRow');
+
+  const EXAMPLES = [
+    { label: 'Highway speed → m/s', value: 60, from: 'mi/hr', to: 'm/s' },
+    { label: 'Marathon → km', value: 26.2, from: 'mi', to: 'km' },
+    { label: 'Gallon → liters', value: 1, from: 'gal', to: 'L' },
+    { label: 'Body weight → kg', value: 150, from: 'lb', to: 'kg' },
+    { label: 'Density: g/cm³ → kg/m³', value: 2.5, from: 'g/cm^3', to: 'kg/m^3' },
+    { label: '2 days → seconds', value: 2, from: 'day', to: 's' },
+  ];
+  EXAMPLES.forEach(function (ex) {
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.type = 'button';
+    btn.textContent = ex.label;
+    btn.addEventListener('click', function () {
+      valInput.value = ex.value;
+      fromInput.value = ex.from;
+      toInput.value = ex.to;
+      runConversion();
+    });
+    examplesRow.appendChild(btn);
+  });
+
+  let animToken = 0; // increments to cancel in-flight animations
+  let skipRequested = false;
+  let lastResult = null;
+  let pendingSleepResolvers = [];
+
+  function sleep(ms) {
+    if (skipRequested) return Promise.resolve();
+    return new Promise(function (resolve) {
+      const wrapped = function () { clearTimeout(timer); resolve(); };
+      const timer = setTimeout(function () {
+        pendingSleepResolvers = pendingSleepResolvers.filter(function (r) { return r !== wrapped; });
+        resolve();
+      }, ms);
+      pendingSleepResolvers.push(wrapped);
+    });
+  }
+  function requestSkip() {
+    skipRequested = true;
+    pendingSleepResolvers.forEach(function (r) { r(); });
+    pendingSleepResolvers = [];
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.classList.add('show');
+  }
+  function clearError() {
+    errorMsg.textContent = '';
+    errorMsg.classList.remove('show');
+  }
+
+  function makeUnitRow(container, item, exp) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const val = document.createElement('span');
+    val.className = 'v';
+    val.textContent = item.valueText;
+    const u = document.createElement('span');
+    u.className = 'u';
+    u.textContent = unitLabel(item.unit, exp || 1);
+    u.dataset.unit = item.unit;
+    row.appendChild(val);
+    row.appendChild(u);
+    container.appendChild(row);
+    return { row: row, unitEl: u };
+  }
+
+  function renderGivenBlock(value, expr) {
+    const block = document.createElement('div');
+    block.className = 'block given';
+    const hasDen = expr.den.length > 0;
+    if (hasDen) {
+      const numWrap = document.createElement('div');
+      const numInfo = makeUnitRow(numWrap, { valueText: formatGiven(value), unit: expr.num.map(function(t){return unitLabel(t.symbol,t.exp);}).join('·') });
+      block.appendChild(numWrap);
+      const bar = document.createElement('div');
+      bar.className = 'frac-bar';
+      block.appendChild(bar);
+      const denWrap = document.createElement('div');
+      const denInfo = makeUnitRow(denWrap, { valueText: '1', unit: expr.den.map(function(t){return unitLabel(t.symbol,t.exp);}).join('·') });
+      block.appendChild(denWrap);
+      return { el: block, numUnitEl: numInfo.unitEl, denUnitEl: denInfo.unitEl };
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'no-den';
+      const info = makeUnitRow(wrap, { valueText: formatGiven(value), unit: expr.num.map(function(t){return unitLabel(t.symbol,t.exp);}).join('·') });
+      block.appendChild(wrap);
+      return { el: block, numUnitEl: info.unitEl, denUnitEl: null };
+    }
+  }
+
+  function renderFactorBlock(step) {
+    const block = document.createElement('div');
+    block.className = 'block';
+    if (step.exp !== 1) {
+      const badge = document.createElement('div');
+      badge.className = 'exp-badge';
+      badge.textContent = toSuperscript(step.exp);
+      badge.title = 'This whole factor is raised to the ' + step.exp + ' power';
+      block.appendChild(badge);
+    }
+    const numWrap = document.createElement('div');
+    const numInfo = makeUnitRow(numWrap, { valueText: formatFactor(step.num.value), unit: step.num.unit });
+    block.appendChild(numWrap);
+    const bar = document.createElement('div');
+    bar.className = 'frac-bar';
+    block.appendChild(bar);
+    const denWrap = document.createElement('div');
+    const denInfo = makeUnitRow(denWrap, { valueText: formatFactor(step.den.value), unit: step.den.unit });
+    block.appendChild(denWrap);
+    return { el: block, numUnitEl: numInfo.unitEl, denUnitEl: denInfo.unitEl };
+  }
+
+  function renderFinalBlock(value, unitStr, sig) {
+    const block = document.createElement('div');
+    block.className = 'block final';
+    const row = document.createElement('div');
+    row.className = 'row';
+    const val = document.createElement('span');
+    val.textContent = formatSigFigs(value, sig);
+    const u = document.createElement('span');
+    u.className = 'u';
+    u.textContent = unitStr;
+    row.appendChild(val);
+    row.appendChild(u);
+    block.appendChild(row);
+    return block;
+  }
+
+  function addOp(symbol) {
+    const op = document.createElement('span');
+    op.className = 'op';
+    op.textContent = symbol;
+    op.setAttribute('aria-hidden', 'true');
+    tape.appendChild(op);
+    return op;
+  }
+
+  function addLedgerLine(html, isFinal) {
+    const li = document.createElement('li');
+    if (isFinal) li.className = 'final-line';
+    li.innerHTML = html;
+    ledgerList.appendChild(li);
+    return li;
+  }
+
+  async function runConversion() {
+    clearError();
+    const myToken = ++animToken;
+    skipRequested = false;
+    tape.innerHTML = '';
+    ledgerList.innerHTML = '';
+    ledger.classList.remove('show');
+    stageControls.style.display = 'none';
+
+    const rawVal = valInput.value.trim();
+    const value = parseFloat(rawVal);
+    if (rawVal === '' || isNaN(value)) {
+      showError('Enter a numeric value to convert.');
+      stageEmpty.style.display = '';
+      tape.style.display = 'none';
+      return;
+    }
+    const fromStr = fromInput.value.trim();
+    const toStr = toInput.value.trim();
+    if (!fromStr || !toStr) {
+      showError('Enter both a "from" unit and a "to" unit.');
+      return;
+    }
+
+    let result;
+    try {
+      result = convert(value, fromStr, toStr);
+    } catch (e) {
+      if (e instanceof ConversionError) {
+        showError(e.message);
+      } else {
+        showError('Couldn’t parse that. Check the unit syntax (e.g. "mi/hr", "g/cm^3").');
+      }
+      stageEmpty.style.display = '';
+      tape.style.display = 'none';
+      return;
+    }
+
+    lastResult = result;
+    stageEmpty.style.display = 'none';
+    tape.style.display = 'flex';
+    stageControls.style.display = 'flex';
+    ledger.classList.add('show');
+    skipBtn.disabled = false;
+
+    const sig = parseInt(sigfigSelect.value, 10);
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const stepDelay = reduceMotion ? 80 : 650;
+    const cancelDelay = reduceMotion ? 20 : 260;
+
+    // given block
+    const given = renderGivenBlock(value, result.src);
+    tape.appendChild(given.el);
+    let prevNumEl = given.numUnitEl, prevDenEl = given.denUnitEl;
+
+    if (result.steps.length === 0) {
+      // already in target units
+      addLedgerLine('Already in <strong>' + exprToString(result.tgt) + '</strong> — no conversion needed.', true);
+    }
+
+    for (let i = 0; i < result.steps.length; i++) {
+      if (myToken !== animToken) return;
+      const step = result.steps[i];
+      addOp('×');
+      const fb = renderFactorBlock(step);
+      tape.appendChild(fb.el);
+      tape.scrollLeft = tape.scrollWidth;
+
+      const li = document.createElement('li');
+      const runningUnitStr = buildRunningUnitLabel(result, i);
+      li.innerHTML = '<span class="mult">×' + formatFactor(step.num.value) + '/' + formatFactor(step.den.value) + (step.exp !== 1 ? '<sup>' + step.exp + '</sup>' : '') + '</span>' +
+        '<span>→ ' + formatRunning(step.runningAfter) + ' <span class="mono">' + runningUnitStr + '</span></span>';
+      ledgerList.appendChild(li);
+
+      await sleep(stepDelay);
+      if (myToken !== animToken) return;
+
+      // cancel animation: the "before" unit appears in prev block at `step.pos`, and in this block at opposite pos
+      const prevEl = step.pos === 'num' ? prevNumEl : prevDenEl;
+      const curEl = step.pos === 'num' ? fb.denUnitEl : fb.numUnitEl;
+      if (prevEl) prevEl.classList.add('canceled');
+      if (curEl) curEl.classList.add('canceled');
+
+      await sleep(cancelDelay);
+      if (myToken !== animToken) return;
+
+      if (step.pos === 'num') prevNumEl = fb.numUnitEl; else prevDenEl = fb.denUnitEl;
+    }
+
+    if (myToken !== animToken) return;
+    addOp('=');
+    const finalUnitStr = exprToString(result.tgt);
+    const finalBlock = renderFinalBlock(result.result, finalUnitStr, sig);
+    tape.appendChild(finalBlock);
+    tape.scrollLeft = tape.scrollWidth;
+
+    addLedgerLine('<span class="mult">=</span><span>' + formatSigFigs(result.result, sig) + ' ' + finalUnitStr + '</span>', true);
+    liveResult.textContent = value + ' ' + exprToString(result.src) + ' equals ' + formatSigFigs(result.result, sig) + ' ' + finalUnitStr + '.';
+  }
+
+  function buildRunningUnitLabel(result, uptoIndex) {
+    // reconstruct current num/den unit maps after applying steps[0..uptoIndex]
+    const numMap = {}, denMap = {};
+    result.src.num.forEach(function (t) { numMap[UNIT_TO_FAMILY[t.symbol]] = { symbol: t.symbol, exp: t.exp }; });
+    result.src.den.forEach(function (t) { denMap[UNIT_TO_FAMILY[t.symbol]] = { symbol: t.symbol, exp: t.exp }; });
+    for (let i = 0; i <= uptoIndex; i++) {
+      const s = result.steps[i];
+      const target = s.pos === 'num' ? numMap : denMap;
+      target[s.fam] = { symbol: s.after, exp: s.exp };
+    }
+    const numStr = Object.values(numMap).map(function (t) { return unitLabel(t.symbol, t.exp); }).join('·');
+    const denStr = Object.values(denMap).map(function (t) { return unitLabel(t.symbol, t.exp); }).join('·');
+    return denStr ? numStr + '/' + denStr : numStr;
+  }
+
+  convertBtn.addEventListener('click', runConversion);
+  [valInput, fromInput, toInput].forEach(function (el) {
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') runConversion(); });
+  });
+  skipBtn.addEventListener('click', function () { requestSkip(); });
+  replayBtn.addEventListener('click', function () { if (lastResult) runConversion(); });
+  sigfigSelect.addEventListener('change', function () {
+    if (!lastResult) return;
+    const sig = parseInt(sigfigSelect.value, 10);
+    const finalRow = tape.querySelector('.block.final .row span:first-child');
+    if (finalRow) finalRow.textContent = formatSigFigs(lastResult.result, sig);
+    const finalLine = ledgerList.querySelector('.final-line');
+    if (finalLine) {
+      const finalUnitStr = exprToString(lastResult.tgt);
+      finalLine.innerHTML = '<span class="mult">=</span><span>' + formatSigFigs(lastResult.result, sig) + ' ' + finalUnitStr + '</span>';
+    }
+  });
+
+  // initial run
+  runConversion();
+})();
+</script>
+</body>
+</html>
