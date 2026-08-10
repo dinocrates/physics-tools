@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Powers of Ten</title>
+<meta name="description" content="A scale-of-the-universe journey from the Planck length to the observable universe, with a draggable log-scale slider, 29 illustrated stops, and human-scale comparisons." />
+<style>
+  :root {
+    --bg: #0B0A18;
+    --surface: #17132B;
+    --surface-2: #1F1A3B;
+    --ink: #F4EFE6;
+    --ink-soft: #B7ADD9;
+    --ink-faint: #7B6FA6;
+    --line: #2A2350;
+    --line-bright: #5B4A96;
+    --accent: #FF4D7E;
+    --cyan: #33F1E6;
+    --gold: #FFD84D;
+    --danger: #FF6B4A;
+    --shadow-color: #000000;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    padding: 2.25rem 1.25rem 4rem;
+    position: relative;
+    transition: background-color 0.15s linear;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.14) 0px,
+      rgba(0, 0, 0, 0.14) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+  .page {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.85rem;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  /* ---------- 8-bit panel utility ---------- */
+  .panel-8bit { position: relative; z-index: 0; }
+  .panel-8bit::before, .panel-8bit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+  }
+  .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
+  .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 3px solid var(--line-bright);
+    padding-bottom: 1.4rem;
+  }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+  .eyebrow::before { content: '// '; opacity: 0.7; }
+  header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
+  header.masthead p {
+    margin: 0.3rem 0 0; color: var(--ink-soft); max-width: 66ch; font-size: 0.92rem;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
+  header.masthead p kbd {
+    font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--line-bright);
+    padding: 0.05rem 0.35rem; font-size: 0.85em; color: var(--ink);
+  }
+
+  /* ---------- viewport / carousel ---------- */
+  .viewport-panel { padding: 1.4rem 1rem 1.7rem; }
+  .scale-viewport {
+    position: relative;
+    height: 15rem;
+    overflow: hidden;
+  }
+  .scale-viewport::before {
+    /* faint center marker */
+    content: '';
+    position: absolute;
+    left: 50%; top: 0.5rem; bottom: 0.5rem;
+    width: 2px;
+    background: var(--line-bright);
+    opacity: 0.5;
+    transform: translateX(-1px);
+  }
+  .scale-card {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 9.5rem; height: 9.5rem;
+    margin: -4.75rem 0 0 -4.75rem;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 4px 0 rgba(0,0,0,0.4));
+  }
+  .scale-card svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .scale-card .card-label {
+    position: absolute;
+    bottom: -1.6rem;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .scale-card.is-focused .card-label { color: var(--cyan); font-weight: 700; }
+
+  /* ---------- controls ---------- */
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-top: 1.9rem;
+  }
+  .nav-btn {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink);
+    border-radius: 0;
+    width: 2.6rem;
+    height: 2.6rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-btn:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  .slider-wrap { flex: 1; position: relative; padding-bottom: 0.9rem; }
+  input[type="range"].scale-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 0.5rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    outline-offset: 3px;
+    cursor: pointer;
+  }
+  input[type="range"].scale-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 1.15rem;
+    height: 1.6rem;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    box-shadow: 2px 2px 0 var(--shadow-color);
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"].scale-slider::-moz-range-thumb {
+    width: 1.15rem;
+    height: 1.6rem;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    box-shadow: 2px 2px 0 var(--shadow-color);
+    cursor: pointer;
+    border-radius: 0;
+  }
+  .tick-row {
+    position: absolute;
+    left: 0; right: 0; top: 100%;
+    height: 0.5rem;
+    pointer-events: none;
+  }
+  .tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: 0.35rem;
+    background: var(--line-bright);
+    transform: translateX(-0.5px);
+  }
+
+  /* ---------- readout + info card ---------- */
+  .readout-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+  }
+  .readout-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+  }
+  .readout-caption { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-faint); font-weight: 700; }
+
+  .info-panel { padding: 1.2rem 1.4rem 1.4rem; margin-top: 1rem; }
+  .info-name { font-size: 1.25rem; color: var(--ink); margin-bottom: 0.4rem; }
+  .info-ratio { color: var(--cyan); font-size: 0.85rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .info-fact { color: var(--ink-soft); font-size: 0.92rem; line-height: 1.55; max-width: 68ch; }
+  .info-fade { transition: opacity 0.18s ease; }
+  .info-fade.fading { opacity: 0; }
+
+  /* ---------- jump list ---------- */
+  details.jumplist { padding: 0.9rem 1.2rem; }
+  details.jumplist summary {
+    cursor: pointer; font-weight: 700; font-size: 0.85rem; color: var(--ink);
+    text-transform: uppercase; letter-spacing: 0.05em; list-style: none;
+  }
+  details.jumplist summary::-webkit-details-marker { display: none; }
+  details.jumplist summary::before { content: '[+] '; color: var(--accent); }
+  details[open].jumplist summary::before { content: '[-] '; }
+  .jump-chips { margin-top: 0.9rem; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+  .jump-chip {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    box-shadow: 2px 2px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .jump-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .jump-chip:active { transform: translate(2px, 2px); box-shadow: none; }
+  .jump-chip.is-current { background: var(--accent); border-color: var(--bg); color: #fff; }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    padding-top: 0.75rem;
+    letter-spacing: 0.02em;
+  }
+  footer::after { content: '_'; color: var(--cyan); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scale-card, body { transition: none; }
+    footer::after { animation: none; opacity: 1; }
+  }
+
+  @media (max-width: 600px) {
+    header.masthead h1 { font-size: 1.5rem; }
+    .scale-viewport { height: 12rem; }
+    .scale-card { width: 7rem; height: 7rem; margin: -3.5rem 0 0 -3.5rem; }
+    .readout-value { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow">Scope of Physics</div>
+    <h1>Powers of Ten</h1>
+    <p>Drag the slider (or use <kbd>&larr;</kbd>/<kbd>&rarr;</kbd>) to travel from the Planck length to the observable universe &mdash; sixty-two orders of magnitude, in one continuous line. Inspired by the classic Eames film of the same idea.</p>
+  </header>
+
+  <section class="viewport-panel panel-8bit" aria-label="Scale viewport">
+    <div class="scale-viewport" id="scaleViewport"></div>
+  </section>
+
+  <div class="controls-row">
+    <button class="nav-btn" id="prevBtn" aria-label="Previous scale" type="button">&#8592;</button>
+    <div class="slider-wrap">
+      <input type="range" class="scale-slider mono" id="scaleSlider" min="0" max="28" step="0.001" value="14" aria-label="Scale position" />
+      <div class="tick-row" id="tickRow" aria-hidden="true"></div>
+    </div>
+    <button class="nav-btn" id="nextBtn" aria-label="Next scale" type="button">&#8594;</button>
+  </div>
+
+  <div class="readout-row">
+    <div>
+      <div class="readout-caption">Current scale</div>
+      <div class="readout-value mono" id="readoutValue">&mdash;</div>
+    </div>
+    <span class="sr-only" id="liveRegion" aria-live="polite"></span>
+  </div>
+
+  <section class="info-panel panel-8bit" aria-label="Scale details">
+    <div class="info-fade" id="infoFade">
+      <h2 class="info-name" id="infoName">&mdash;</h2>
+      <div class="info-ratio mono" id="infoRatio"></div>
+      <p class="info-fact" id="infoFact"></p>
+    </div>
+  </section>
+
+  <details class="jumplist panel-8bit">
+    <summary>Jump to a scale</summary>
+    <div class="jump-chips" id="jumpChips"></div>
+  </details>
+
+  <footer>29 stops, ~10&#8317;&#179;&#8309; to ~10&#8322;&#8318; meters &middot; sizes are order-of-magnitude accurate</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ DATA ============
+  const STOPS = [
+    { id: 'planck',    label: 'Planck length',                  meters: 1.6e-35, kind: 'point',     fact: "The smallest length with physical meaning. Below this, the concept of distance itself stops making sense." },
+    { id: 'quark',     label: 'Quarks & electrons',              meters: 1e-18,   kind: 'point',     fact: "As far as we can measure, fundamental particles have no size at all — this number is just the limit of our best experiments." },
+    { id: 'proton',    label: 'Proton',                          meters: 1.7e-15, kind: 'cluster',   count: 3, fact: "Built from three quarks, held together by the strong nuclear force." },
+    { id: 'nucleus',   label: 'Atomic nucleus',                  meters: 5.4e-15, kind: 'cluster',   count: 9, fact: "A carbon nucleus. Nearly all of an atom's mass is packed into this tiny, dense core." },
+    { id: 'atom',      label: 'Hydrogen atom',                   meters: 1e-10,   kind: 'atom',      fact: "An atom is almost entirely empty space — the nucleus is about 1/100,000th of the atom's width." },
+    { id: 'molecule',  label: 'Water molecule',                  meters: 2.8e-10, kind: 'molecule',  fact: "Two hydrogen atoms and one oxygen atom, bent into a 104.5° angle." },
+    { id: 'lattice',   label: 'Crystal lattice',                 meters: 5.6e-10, kind: 'lattice',   fact: "In a solid like table salt, atoms lock into a repeating 3D grid — that order is what makes a crystal a crystal." },
+    { id: 'dna',       label: 'DNA double helix',                meters: 2e-9,    kind: 'helix',     fact: "The width of the molecule that encodes essentially all known life." },
+    { id: 'virus',     label: 'Virus',                           meters: 1e-7,    kind: 'blob',      fact: "Smaller than the wavelength of visible light — no optical microscope will ever let you see one directly." },
+    { id: 'bacteria',  label: 'Bacterium',                       meters: 2e-6,    kind: 'blob',      fact: "A single E. coli bacterium could fit about 35 times across the width of a human hair." },
+    { id: 'cell',      label: 'Red blood cell',                  meters: 8e-6,    kind: 'blob',      fact: "About 25 trillion of these are flowing through your body's blood vessels right now." },
+    { id: 'hair',      label: 'Human hair (width)',              meters: 7e-5,    kind: 'line',      fact: "The classic everyday yardstick for “really small.”" },
+    { id: 'sand',      label: 'Grain of sand',                   meters: 5e-4,    kind: 'poly',      fact: "Roughly 7.5 quintillion of these make up all the sand on every beach and desert on Earth." },
+    { id: 'insect',    label: 'Insects (ant)',                   meters: 8e-3,    kind: 'pixel',     fact: "Pound for pound, an ant can carry 10 to 50 times its own body weight." },
+    { id: 'human',     label: 'Human being',                     meters: 1.7,     kind: 'pixel',     fact: "You. Right about in the middle of this entire scale, logarithmically speaking." },
+    { id: 'car',       label: 'Car',                             meters: 4.5,     kind: 'pixel',     fact: "A typical sedan — about the length of three people lying head to toe." },
+    { id: 'plane',     label: 'Airplane',                        meters: 60,      kind: 'pixel',     fact: "A Boeing 747 is longer than most city blocks are wide." },
+    { id: 'building',  label: 'Skyscraper',                      meters: 300,     kind: 'pixel',     fact: "Roughly the height of the Eiffel Tower." },
+    { id: 'mountain',  label: 'Mountain (Everest)',              meters: 8849,    kind: 'pixel',     fact: "The tallest point on Earth's surface, measured from sea level." },
+    { id: 'continent', label: 'Continent',                       meters: 6e6,     kind: 'pixel',     fact: "A large continent spans thousands of kilometers — roughly the width of Africa." },
+    { id: 'earth',     label: 'Earth',                           meters: 1.27e7,  kind: 'sphere',    fact: "Our home planet — about 12,742 km across, pole to pole." },
+    { id: 'moonorbit', label: "Moon's orbit",                    meters: 3.84e8,  kind: 'orbit1',    fact: "About 30 Earths could fit end-to-end in the gap between Earth and the Moon." },
+    { id: 'sun',       label: 'The Sun',                         meters: 1.39e9,  kind: 'sunsphere', fact: "About 1.3 million Earths could fit inside the Sun." },
+    { id: 'au',        label: 'Earth–Sun distance (1 AU)',  meters: 1.5e11,  kind: 'orbit1',    fact: "Light takes about 8 minutes and 20 seconds to cross this distance." },
+    { id: 'solsystem', label: 'Solar system',                    meters: 9e12,    kind: 'orbitsys',  fact: "Out to Neptune's orbit — and the Sun's gravity still reaches thousands of times farther than this." },
+    { id: 'lightyear', label: 'Light-year',                      meters: 9.46e15, kind: 'beam',      fact: "The distance light travels in one year — about 9.46 trillion kilometers." },
+    { id: 'proxima',   label: 'Nearest star (Proxima Centauri)', meters: 4.0e16,  kind: 'starpair',  fact: "The closest star to our Sun. Even at light speed, it's over a four-year trip." },
+    { id: 'galaxy',    label: 'The Milky Way',                   meters: 9.5e20,  kind: 'spiral',    fact: "Our galaxy holds 100–400 billion stars — and we're way out in one of its spiral arms." },
+    { id: 'universe',  label: 'Observable universe',             meters: 8.8e26,  kind: 'cosmicweb', fact: "Everything we could ever possibly see, given that light has only had 13.8 billion years to reach us." },
+  ];
+  STOPS.forEach(function (s, i) { s.index = i; s.logm = Math.log10(s.meters); });
+  const HUMAN_METERS = STOPS.filter(function (s) { return s.id === 'human'; })[0].meters;
+  const N = STOPS.length;
+
+  // ============ MATH HELPERS ============
+  function logMetersAtPosition(pos) {
+    const i = Math.max(0, Math.min(N - 1, Math.floor(pos)));
+    const j = Math.min(N - 1, i + 1);
+    const frac = pos - i;
+    return STOPS[i].logm + (STOPS[j].logm - STOPS[i].logm) * frac;
+  }
+  function metersAtPosition(pos) { return Math.pow(10, logMetersAtPosition(pos)); }
+
+  const SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+  function toSuperscript(n) { return String(n).split('').map(function (c) { return SUP[c] !== undefined ? SUP[c] : c; }).join(''); }
+
+  function formatMeters(m) {
+    const exp = Math.floor(Math.log10(m));
+    let mantissa = m / Math.pow(10, exp);
+    let mantissaStr = mantissa.toFixed(2);
+    if (parseFloat(mantissaStr) >= 10) return '1.00×10' + toSuperscript(exp + 1) + ' m';
+    return mantissaStr + '×10' + toSuperscript(exp) + ' m';
+  }
+
+  function formatHumanRatio(m) {
+    if (Math.abs(m - HUMAN_METERS) / HUMAN_METERS < 0.02) return "That's about your size.";
+    const bigger = m > HUMAN_METERS;
+    const ratio = bigger ? m / HUMAN_METERS : HUMAN_METERS / m;
+    let ratioStr;
+    if (ratio < 1000) {
+      ratioStr = ratio.toPrecision(3).replace(/\.?0+$/, '');
+    } else {
+      const exp = Math.floor(Math.log10(ratio));
+      const mantissa = (ratio / Math.pow(10, exp)).toFixed(2);
+      ratioStr = mantissa + '×10' + toSuperscript(exp);
+    }
+    return ratioStr + '× ' + (bigger ? 'bigger' : 'smaller') + ' than you';
+  }
+
+  const BG_STOPS = [
+    { logm: STOPS[0].logm, color: [6, 22, 32] },
+    { logm: 0, color: [11, 10, 24] },
+    { logm: STOPS[N - 1].logm, color: [24, 10, 36] },
+  ];
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function bgColorAtLogm(logm) {
+    let seg;
+    if (logm <= BG_STOPS[1].logm) seg = [BG_STOPS[0], BG_STOPS[1]];
+    else seg = [BG_STOPS[1], BG_STOPS[2]];
+    const t = Math.max(0, Math.min(1, (logm - seg[0].logm) / (seg[1].logm - seg[0].logm)));
+    const c = seg[0].color.map(function (v, i) { return Math.round(lerp(v, seg[1].color[i], t)); });
+    return 'rgb(' + c[0] + ', ' + c[1] + ', ' + c[2] + ')';
+  }
+
+  // ============ SVG ICON BUILDERS ============
+  // All icons are drawn inside a 0 0 100 100 viewBox, using CSS custom properties for color
+  // so they stay in sync with the page palette. Shapes only (circles/paths/rects) -- no
+  // external assets.
+  function iconPoint(stop) {
+    const uncertain = stop.id === 'planck' || stop.id === 'quark';
+    let s = '<circle cx="50" cy="50" r="4" fill="var(--cyan)" filter="url(#glow-cyan)"/>';
+    if (uncertain) {
+      s += '<circle cx="50" cy="50" r="22" fill="none" stroke="var(--ink-faint)" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>';
+    }
+    return s;
+  }
+  function iconCluster(stop) {
+    const n = stop.count || 3;
+    const colors = ['var(--accent)', 'var(--accent)', 'var(--cyan)', 'var(--gold)'];
+    const R = n <= 3 ? 11 : 17;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + i * 0.7;
+      const r = R * (0.45 + 0.55 * ((i * 37) % 100) / 100);
+      pts.push([50 + Math.cos(a) * r, 50 + Math.sin(a) * r]);
+    }
+    let s = '';
+    if (n <= 3) {
+      for (let i = 0; i < n; i++) {
+        const a1 = pts[i], a2 = pts[(i + 1) % n];
+        s += '<path d="M' + a1[0].toFixed(1) + ',' + a1[1].toFixed(1) + ' Q50,50 ' + a2[0].toFixed(1) + ',' + a2[1].toFixed(1) + '" fill="none" stroke="var(--ink-faint)" stroke-width="0.8" opacity="0.5"/>';
+      }
+    }
+    pts.forEach(function (p, i) {
+      s += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + (n <= 3 ? 6 : 4) + '" fill="' + colors[i % colors.length] + '"/>';
+    });
+    return s;
+  }
+  function iconAtom() {
+    let s = '<circle cx="50" cy="50" r="5" fill="var(--gold)" filter="url(#glow-gold)"/>';
+    s += '<ellipse cx="50" cy="50" rx="32" ry="13" fill="none" stroke="var(--cyan)" stroke-width="1" opacity="0.55"/>';
+    s += '<ellipse cx="50" cy="50" rx="13" ry="32" fill="none" stroke="var(--cyan)" stroke-width="1" opacity="0.3"/>';
+    s += '<circle cx="82" cy="50" r="3" fill="var(--cyan)" filter="url(#glow-cyan)"/>';
+    s += '<circle cx="50" cy="18" r="3" fill="var(--cyan)" opacity="0.7"/>';
+    return s;
+  }
+  function iconMolecule() {
+    const ox = 50, oy = 55;
+    const half = (104.5 * Math.PI / 180) / 2;
+    const a1 = Math.PI / 2 + half, a2 = Math.PI / 2 - half;
+    const d = 26;
+    const h1 = [ox + Math.cos(a1) * d, oy - Math.sin(a1) * d];
+    const h2 = [ox + Math.cos(a2) * d, oy - Math.sin(a2) * d];
+    let s = '<line x1="' + ox + '" y1="' + oy + '" x2="' + h1[0].toFixed(1) + '" y2="' + h1[1].toFixed(1) + '" stroke="var(--ink-faint)" stroke-width="2"/>';
+    s += '<line x1="' + ox + '" y1="' + oy + '" x2="' + h2[0].toFixed(1) + '" y2="' + h2[1].toFixed(1) + '" stroke="var(--ink-faint)" stroke-width="2"/>';
+    s += '<circle cx="' + ox + '" cy="' + oy + '" r="9" fill="var(--accent)"/>';
+    s += '<circle cx="' + h1[0].toFixed(1) + '" cy="' + h1[1].toFixed(1) + '" r="5" fill="var(--ink)"/>';
+    s += '<circle cx="' + h2[0].toFixed(1) + '" cy="' + h2[1].toFixed(1) + '" r="5" fill="var(--ink)"/>';
+    return s;
+  }
+  function iconLattice() {
+    let s = '';
+    const rows = 4, cols = 4, spacing = 17, ox = 50 - (cols - 1) * spacing / 2, oy = 50 - (rows - 1) * spacing / 2;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols - 1; c++) {
+        const x1 = ox + c * spacing, y1 = oy + r * spacing, x2 = ox + (c + 1) * spacing;
+        s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y1 + '" stroke="var(--line-bright)" stroke-width="1"/>';
+      }
+    }
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows - 1; r++) {
+        const x1 = ox + c * spacing, y1 = oy + r * spacing, y2 = oy + (r + 1) * spacing;
+        s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x1 + '" y2="' + y2 + '" stroke="var(--line-bright)" stroke-width="1"/>';
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = ox + c * spacing, y = oy + r * spacing;
+        const color = (r + c) % 2 === 0 ? 'var(--cyan)' : 'var(--accent)';
+        s += '<circle cx="' + x + '" cy="' + y + '" r="3.2" fill="' + color + '"/>';
+      }
+    }
+    return s;
+  }
+  function iconHelix() {
+    const steps = 24, amp = 22, cx = 50;
+    const pts1 = [], pts2 = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, y = 8 + t * 84;
+      pts1.push([cx + Math.sin(t * Math.PI * 3) * amp, y]);
+      pts2.push([cx - Math.sin(t * Math.PI * 3) * amp, y]);
+    }
+    const toPath = function (pts) { return 'M' + pts.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L'); };
+    let s = '<path d="' + toPath(pts1) + '" fill="none" stroke="var(--cyan)" stroke-width="2"/>';
+    s += '<path d="' + toPath(pts2) + '" fill="none" stroke="var(--accent)" stroke-width="2"/>';
+    for (let i = 2; i < pts1.length - 2; i += 3) {
+      s += '<line x1="' + pts1[i][0].toFixed(1) + '" y1="' + pts1[i][1].toFixed(1) + '" x2="' + pts2[i][0].toFixed(1) + '" y2="' + pts2[i][1].toFixed(1) + '" stroke="var(--ink-faint)" stroke-width="1"/>';
+    }
+    return s;
+  }
+  function iconBlob(stop) {
+    if (stop.id === 'bacteria') {
+      let s = '<rect x="24" y="38" width="52" height="24" rx="12" fill="var(--surface-2)" stroke="var(--line-bright)" stroke-width="2"/>';
+      s += '<path d="M76,50 Q92,40 94,55 Q96,68 84,60" fill="none" stroke="var(--cyan)" stroke-width="1.5"/>';
+      return s;
+    }
+    let s = '<circle cx="50" cy="50" r="26" fill="var(--surface-2)" stroke="var(--line-bright)" stroke-width="2"/>';
+    if (stop.id === 'virus') {
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        const x1 = 50 + Math.cos(a) * 26, y1 = 50 + Math.sin(a) * 26;
+        const x2 = 50 + Math.cos(a) * 34, y2 = 50 + Math.sin(a) * 34;
+        s += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="var(--accent)" stroke-width="2"/>';
+        s += '<circle cx="' + x2.toFixed(1) + '" cy="' + y2.toFixed(1) + '" r="2" fill="var(--accent)"/>';
+      }
+    } else if (stop.id === 'cell') {
+      s += '<circle cx="50" cy="50" r="9" fill="var(--gold)" opacity="0.85"/>';
+    }
+    return s;
+  }
+  function iconLine() {
+    return '<path d="M18,30 Q50,20 45,50 Q40,80 78,74" fill="none" stroke="var(--ink-soft)" stroke-width="1.6"/>';
+  }
+  function iconPoly() {
+    return '<polygon points="42,36 60,34 68,48 61,64 43,66 32,52" fill="var(--gold)" stroke="var(--line-bright)" stroke-width="1.5"/>';
+  }
+  function iconPixel(stop) {
+    if (stop.id === 'insect') {
+      const leg = 'var(--ink-soft)';
+      let s = '';
+      [[46,50,38,64],[52,50,46,66],[58,50,54,64],[64,48,72,60],[68,46,78,52],[64,44,74,38]].forEach(function (l) {
+        s += '<line x1="' + l[0] + '" y1="' + l[1] + '" x2="' + l[2] + '" y2="' + l[3] + '" stroke="' + leg + '" stroke-width="2"/>';
+      });
+      s += '<line x1="72" y1="44" x2="80" y2="34" stroke="' + leg + '" stroke-width="1.5"/>';
+      s += '<line x1="76" y1="46" x2="86" y2="40" stroke="' + leg + '" stroke-width="1.5"/>';
+      s += '<ellipse cx="38" cy="50" rx="14" ry="10" fill="var(--accent)"/>';
+      s += '<circle cx="56" cy="48" r="7" fill="var(--accent)"/>';
+      s += '<circle cx="70" cy="46" r="6" fill="var(--accent)"/>';
+      return s;
+    }
+    if (stop.id === 'human') {
+      let s = '<circle cx="50" cy="26" r="8" fill="var(--ink)"/>';
+      s += '<rect x="42" y="34" width="16" height="26" fill="var(--ink)"/>';
+      s += '<rect x="30" y="36" width="10" height="4" fill="var(--ink)"/>';
+      s += '<rect x="60" y="36" width="10" height="4" fill="var(--ink)"/>';
+      s += '<rect x="43" y="60" width="6" height="24" fill="var(--ink)"/>';
+      s += '<rect x="51" y="60" width="6" height="24" fill="var(--ink)"/>';
+      return s;
+    }
+    if (stop.id === 'car') {
+      let s = '<rect x="18" y="52" width="64" height="16" fill="var(--cyan)"/>';
+      s += '<rect x="32" y="38" width="36" height="16" fill="var(--cyan)"/>';
+      s += '<rect x="36" y="41" width="12" height="10" fill="var(--bg)"/>';
+      s += '<rect x="50" y="41" width="12" height="10" fill="var(--bg)"/>';
+      s += '<circle cx="32" cy="70" r="7" fill="var(--ink)"/>';
+      s += '<circle cx="68" cy="70" r="7" fill="var(--ink)"/>';
+      s += '<circle cx="32" cy="70" r="3" fill="var(--line-bright)"/>';
+      s += '<circle cx="68" cy="70" r="3" fill="var(--line-bright)"/>';
+      return s;
+    }
+    if (stop.id === 'plane') {
+      let s = '<rect x="14" y="48" width="72" height="6" fill="var(--ink)"/>';
+      s += '<polygon points="40,30 55,50 40,70 34,70 34,30" fill="var(--ink)"/>';
+      s += '<polygon points="78,44 90,50 78,56" fill="var(--ink)"/>';
+      s += '<polygon points="14,44 8,32 20,44" fill="var(--ink)"/>';
+      return s;
+    }
+    if (stop.id === 'building') {
+      let s = '<rect x="36" y="14" width="28" height="72" fill="var(--surface-2)" stroke="var(--line-bright)" stroke-width="2"/>';
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 3; c++) {
+          s += '<rect x="' + (40 + c * 8) + '" y="' + (20 + r * 9) + '" width="5" height="5" fill="var(--gold)" opacity="0.7"/>';
+        }
+      }
+      return s;
+    }
+    if (stop.id === 'mountain') {
+      let s = '<polygon points="50,16 82,80 18,80" fill="var(--surface-2)" stroke="var(--line-bright)" stroke-width="2"/>';
+      s += '<polygon points="50,16 60,38 40,38" fill="var(--ink)"/>';
+      return s;
+    }
+    // continent
+    let s = '';
+    for (let i = 1; i < 4; i++) s += '<line x1="' + (20 + i * 15) + '" y1="10" x2="' + (20 + i * 15) + '" y2="90" stroke="var(--line-bright)" stroke-width="0.5" opacity="0.4"/>';
+    for (let i = 1; i < 4; i++) s += '<line x1="10" y1="' + (20 + i * 15) + '" x2="90" y2="' + (20 + i * 15) + '" stroke="var(--line-bright)" stroke-width="0.5" opacity="0.4"/>';
+    s += '<path d="M30,25 Q50,15 65,28 Q80,38 72,55 Q78,70 60,78 Q40,85 32,68 Q20,55 28,42 Q18,32 30,25 Z" fill="var(--cyan)" opacity="0.85"/>';
+    return s;
+  }
+  function iconSphere() {
+    let s = '<circle cx="50" cy="50" r="34" fill="url(#earthGradient)"/>';
+    s += '<path d="M30,35 Q45,28 55,38 Q60,45 50,50 Q40,58 32,50 Z" fill="var(--surface-2)" opacity="0.85"/>';
+    s += '<circle cx="62" cy="62" r="8" fill="var(--surface-2)" opacity="0.75"/>';
+    return s;
+  }
+  function iconSun() {
+    let s = '';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const x1 = 50 + Math.cos(a) * 38, y1 = 50 + Math.sin(a) * 38;
+      const x2 = 50 + Math.cos(a) * 46, y2 = 50 + Math.sin(a) * 46;
+      s += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="var(--gold)" stroke-width="2" opacity="0.7"/>';
+    }
+    s += '<circle cx="50" cy="50" r="30" fill="url(#sunGradient)" filter="url(#glow-gold)"/>';
+    return s;
+  }
+  function iconOrbit1(stop) {
+    let s = '<ellipse cx="50" cy="50" rx="38" ry="16" fill="none" stroke="var(--line-bright)" stroke-width="1" stroke-dasharray="2 2"/>';
+    const isAu = stop.id === 'au';
+    s += '<circle cx="50" cy="50" r="' + (isAu ? 9 : 6) + '" fill="var(--gold)" filter="url(#glow-gold)"/>';
+    s += '<circle cx="88" cy="50" r="3" fill="var(--cyan)"/>';
+    return s;
+  }
+  function iconOrbitSys() {
+    let s = '<circle cx="50" cy="50" r="6" fill="var(--gold)" filter="url(#glow-gold)"/>';
+    const rings = [12, 18, 24, 30, 38];
+    rings.forEach(function (r, i) {
+      s += '<ellipse cx="50" cy="50" rx="' + r + '" ry="' + (r * 0.4).toFixed(1) + '" fill="none" stroke="var(--line-bright)" stroke-width="0.6" opacity="0.5"/>';
+      const a = i * 1.3;
+      const x = 50 + Math.cos(a) * r, y = 50 + Math.sin(a) * r * 0.4;
+      s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2" fill="var(--cyan)"/>';
+    });
+    return s;
+  }
+  function iconBeam() {
+    let s = '<circle cx="18" cy="50" r="4" fill="var(--gold)" filter="url(#glow-gold)"/>';
+    s += '<line x1="24" y1="50" x2="76" y2="50" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>';
+    s += '<circle cx="50" cy="50" r="2.5" fill="var(--cyan)" filter="url(#glow-cyan)"/>';
+    s += '<circle cx="82" cy="50" r="4" fill="var(--ink)"/>';
+    return s;
+  }
+  function iconStarPair() {
+    let s = '<circle cx="20" cy="50" r="6" fill="var(--gold)" filter="url(#glow-gold)"/>';
+    s += '<line x1="28" y1="50" x2="72" y2="50" stroke="var(--ink-faint)" stroke-width="1" stroke-dasharray="2 3"/>';
+    s += '<circle cx="80" cy="50" r="5" fill="var(--accent)" filter="url(#glow-pink)"/>';
+    return s;
+  }
+  function iconSpiral() {
+    let s = '<circle cx="50" cy="50" r="6" fill="var(--gold)" filter="url(#glow-gold)"/>';
+    for (let arm = 0; arm < 2; arm++) {
+      for (let i = 0; i < 26; i++) {
+        const t = i / 26;
+        const theta = t * Math.PI * 3.5 + arm * Math.PI;
+        const r = 4 + t * 40;
+        const x = 50 + Math.cos(theta) * r, y = 50 + Math.sin(theta) * r * 0.6;
+        const size = 1 + (1 - t) * 1.5;
+        s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + size.toFixed(1) + '" fill="var(--cyan)" opacity="' + (0.4 + 0.5 * (1 - t)).toFixed(2) + '"/>';
+      }
+    }
+    return s;
+  }
+  function iconCosmicWeb() {
+    let s = '<circle cx="50" cy="50" r="44" fill="none" stroke="var(--line-bright)" stroke-width="1" stroke-dasharray="2 3" opacity="0.6"/>';
+    for (let i = 0; i < 24; i++) {
+      const a = ((i * 137.5) % 360) * Math.PI / 180;
+      const r = 6 + (i * 53) % 38;
+      const x = 50 + Math.cos(a) * r, y = 50 + Math.sin(a) * r;
+      s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="1.6" fill="var(--cyan)" opacity="0.75"/>';
+    }
+    s += '<circle cx="50" cy="50" r="2.4" fill="var(--gold)" filter="url(#glow-gold)"/>';
+    return s;
+  }
+
+  const ICON_BUILDERS = {
+    point: iconPoint, cluster: iconCluster, atom: iconAtom, molecule: iconMolecule,
+    lattice: iconLattice, helix: iconHelix, blob: iconBlob, line: iconLine, poly: iconPoly,
+    pixel: iconPixel, sphere: iconSphere, sunsphere: iconSun, orbit1: iconOrbit1,
+    orbitsys: iconOrbitSys, beam: iconBeam, starpair: iconStarPair, spiral: iconSpiral, cosmicweb: iconCosmicWeb,
+  };
+
+  const SVG_DEFS =
+    '<defs>' +
+    '<filter id="glow-cyan" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+    '<filter id="glow-pink" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+    '<filter id="glow-gold" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+    '<radialGradient id="earthGradient" cx="38%" cy="35%" r="70%"><stop offset="0%" stop-color="#7FE8E0"/><stop offset="45%" stop-color="#33A6E6"/><stop offset="100%" stop-color="#123A6B"/></radialGradient>' +
+    '<radialGradient id="sunGradient" cx="40%" cy="38%" r="65%"><stop offset="0%" stop-color="#FFF3C4"/><stop offset="55%" stop-color="#FFD84D"/><stop offset="100%" stop-color="#E85D2A"/></radialGradient>' +
+    '</defs>';
+
+  // ============ BUILD CAROUSEL DOM ============
+  const viewport = document.getElementById('scaleViewport');
+  const svgDefsHost = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgDefsHost.setAttribute('width', '0');
+  svgDefsHost.setAttribute('height', '0');
+  svgDefsHost.style.position = 'absolute';
+  svgDefsHost.innerHTML = SVG_DEFS;
+  viewport.appendChild(svgDefsHost);
+
+  const cardEls = STOPS.map(function (stop) {
+    const card = document.createElement('div');
+    card.className = 'scale-card';
+    const builder = ICON_BUILDERS[stop.kind] || iconPoint;
+    card.innerHTML = '<svg viewBox="0 0 100 100">' + builder(stop) + '</svg><div class="card-label">' + stop.label + '</div>';
+    viewport.appendChild(card);
+    return card;
+  });
+
+  // ============ JUMP CHIPS ============
+  const jumpChipsHost = document.getElementById('jumpChips');
+  const chipEls = STOPS.map(function (stop) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'jump-chip';
+    chip.textContent = stop.label;
+    chip.addEventListener('click', function () { animateTo(stop.index); });
+    jumpChipsHost.appendChild(chip);
+    return chip;
+  });
+
+  // ============ TICK MARKS ============
+  const tickRow = document.getElementById('tickRow');
+  STOPS.forEach(function (stop) {
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.style.left = (stop.index / (N - 1) * 100) + '%';
+    tickRow.appendChild(tick);
+  });
+
+  // ============ STATE + RENDER ============
+  const slider = document.getElementById('scaleSlider');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const readoutValue = document.getElementById('readoutValue');
+  const infoFade = document.getElementById('infoFade');
+  const infoName = document.getElementById('infoName');
+  const infoRatio = document.getElementById('infoRatio');
+  const infoFact = document.getElementById('infoFact');
+  const liveRegion = document.getElementById('liveRegion');
+
+  let currentPos = STOPS.filter(function (s) { return s.id === 'human'; })[0].index;
+  let lastNearest = -1;
+  let animRAF = null;
+  let fadeTimer = null;
+
+  function render() {
+    const logm = logMetersAtPosition(currentPos);
+    const meters = Math.pow(10, logm);
+    readoutValue.textContent = formatMeters(meters);
+    document.body.style.backgroundColor = bgColorAtLogm(logm);
+
+    let nearest = Math.round(currentPos);
+    nearest = Math.max(0, Math.min(N - 1, nearest));
+
+    cardEls.forEach(function (card, i) {
+      const delta = i - currentPos;
+      const abs = Math.abs(delta);
+      const SPACING = 168; // px between adjacent card centers
+      const scale = Math.max(0.22, 1 - abs * 0.38);
+      const opacity = Math.max(0, 1 - abs * 0.62);
+      card.style.transform = 'translateX(' + (delta * SPACING).toFixed(1) + 'px) scale(' + scale.toFixed(3) + ')';
+      card.style.opacity = opacity.toFixed(3);
+      card.style.zIndex = String(200 - Math.round(abs * 10));
+      card.classList.toggle('is-focused', i === nearest);
+    });
+
+    chipEls.forEach(function (chip, i) { chip.classList.toggle('is-current', i === nearest); });
+
+    if (nearest !== lastNearest) {
+      lastNearest = nearest;
+      const stop = STOPS[nearest];
+      infoFade.classList.add('fading');
+      clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(function () {
+        infoName.textContent = stop.label;
+        infoRatio.textContent = formatHumanRatio(stop.meters);
+        infoFact.textContent = stop.fact;
+        infoFade.classList.remove('fading');
+        liveRegion.textContent = stop.label + '. ' + formatMeters(stop.meters) + '. ' + stop.fact;
+      }, 130);
+    }
+  }
+
+  function setPosition(pos) {
+    currentPos = Math.max(0, Math.min(N - 1, pos));
+    slider.value = String(currentPos);
+    render();
+  }
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function animateTo(target) {
+    if (animRAF) cancelAnimationFrame(animRAF);
+    target = Math.max(0, Math.min(N - 1, target));
+    if (reduceMotion) { setPosition(target); return; }
+    const start = currentPos;
+    const startTime = performance.now();
+    const duration = 420;
+    function step(now) {
+      const t = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setPosition(start + (target - start) * eased);
+      if (t < 1) animRAF = requestAnimationFrame(step);
+      else animRAF = null;
+    }
+    animRAF = requestAnimationFrame(step);
+  }
+
+  function goNext() { animateTo(Math.floor(currentPos + 0.001) + 1); }
+  function goPrev() { animateTo(Math.ceil(currentPos - 0.001) - 1); }
+
+  slider.addEventListener('input', function () {
+    if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
+    setPosition(parseFloat(slider.value));
+  });
+  prevBtn.addEventListener('click', goPrev);
+  nextBtn.addEventListener('click', goNext);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
+  });
+
+  setPosition(currentPos);
+  window.addEventListener('resize', render);
+})();
+</script>
+</body>
+</html>

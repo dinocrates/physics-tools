@@ -10,6 +10,7 @@ Tools are numbered in the order they show up in the course.
 
 | # | Tool | Unit | Description |
 |---|------|------|-------------|
+| 00 | [Powers of Ten](tools/00-scale-of-physics/index.html) | Course opener | A scale-of-the-universe journey from the Planck length to the observable universe. Drag a log-scale slider (or use arrow keys) through 29 illustrated stops — subatomic particles, atoms, a crystal lattice, everyday objects, planets, and galaxies — each with its size and a human-scale comparison. |
 | 01 | [Dimensional Analysis Lab](tools/01-dimensional-analysis/index.html) | Measurement & Units | Enter a value and units, and watch the factor-label conversion chain build itself step by step, with matching units canceling live. Supports length, mass, time, and volume, including compound units (`mi/hr`, `g/cm^3`) and exponents. |
 
 ## Running locally
