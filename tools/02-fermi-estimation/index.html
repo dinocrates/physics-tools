@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Fermi Estimation Lab</title>
-<meta name="description" content="Break a hard estimation question into a chain of easier guesses and watch the answer update live — five classic Fermi problems plus a blank chain for your own question." />
+<meta name="description" content="A live Fermi estimate for Temecula's donut shops, with pins scaling on an 8-bit city map as you adjust the guesses." />
 <style>
   :root {
     --bg: #0B0A18;
@@ -106,23 +106,6 @@
 
   button { font-family: inherit; cursor: pointer; }
 
-  /* ---------- problem switcher ---------- */
-  .problem-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .chip {
-    background: var(--surface-2);
-    border: 2px solid var(--line-bright);
-    color: var(--ink-soft);
-    border-radius: 0;
-    padding: 0.4rem 0.9rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    box-shadow: 3px 3px 0 var(--shadow-color);
-    transition: transform 0.05s linear, box-shadow 0.05s linear;
-  }
-  .chip:hover { border-color: var(--accent); color: var(--accent); }
-  .chip:active { transform: translate(3px, 3px); box-shadow: none; }
-  .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
-
   /* ---------- question + reset ---------- */
   .question-row {
     display: flex;
@@ -132,17 +115,6 @@
     flex-wrap: wrap;
   }
   .question-text { font-size: 1.15rem; color: var(--ink); font-weight: 700; max-width: 56ch; line-height: 1.5; }
-  .question-input {
-    font-family: var(--font-mono);
-    font-size: 1.05rem;
-    font-weight: 700;
-    padding: 0.5rem 0.65rem;
-    border-radius: 0;
-    border: 2px solid var(--line-bright);
-    background: var(--bg);
-    color: var(--cyan);
-    width: 100%;
-  }
 
   /* ---------- map panel ---------- */
   .map-panel {
@@ -152,16 +124,37 @@
     align-items: center;
     gap: 0.6rem;
   }
-  .map-panel img {
+  .map-image-wrap { position: relative; display: inline-block; max-width: 100%; }
+  .map-image-wrap img {
     display: block;
     max-width: 100%;
-    max-height: 22rem;
+    max-height: 24rem;
     width: auto;
     height: auto;
     border: 2px solid var(--line-bright);
     image-rendering: pixelated;
     image-rendering: crisp-edges;
   }
+  .pin-layer { position: absolute; inset: 0; pointer-events: none; }
+  .pin {
+    position: absolute;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(.2,.8,.3,1.3), opacity 0.3s ease;
+  }
+  .pin-people {
+    width: 5px; height: 5px;
+    background: var(--cyan);
+  }
+  .pin-people.active { opacity: 0.65; transform: translate(-50%, -50%) scale(1); }
+  .pin-shop {
+    width: 11px; height: 11px;
+    background: var(--gold);
+    border: 1.5px solid var(--bg);
+    box-shadow: 0 0 0 1.5px var(--accent);
+  }
+  .pin-shop.active { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   .map-caption {
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -169,6 +162,18 @@
     color: var(--cyan);
     font-weight: 700;
   }
+  .map-legend {
+    display: flex;
+    gap: 1.1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+  .map-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .map-legend .swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .map-legend .swatch-shop { background: var(--gold); border: 1.5px solid var(--bg); box-shadow: 0 0 0 1.5px var(--accent); }
+  .map-legend .swatch-people { background: var(--cyan); opacity: 0.65; }
 
   /* ---------- actual-answer + reveal (classroom pacing controls) ---------- */
   .actual-row { display: flex; flex-direction: column; gap: 0.4rem; }
@@ -312,39 +317,6 @@
   .factor-unit { font-size: 0.76rem; color: var(--ink-faint); white-space: nowrap; }
   .factor-rationale { font-size: 0.78rem; color: var(--ink-faint); line-height: 1.5; }
 
-  .factor-remove {
-    flex: none;
-    width: 1.6rem; height: 1.6rem;
-    background: var(--surface-2);
-    border: 2px solid var(--line-bright);
-    color: var(--danger);
-    font-size: 0.8rem;
-    font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .factor-remove:hover { border-color: var(--danger); }
-
-  /* custom-mode text inputs */
-  input.factor-text-input {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    padding: 0.35rem 0.5rem;
-    border-radius: 0;
-    border: 2px solid var(--line-bright);
-    background: var(--bg);
-    color: var(--ink);
-  }
-  select.factor-op-select {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    font-weight: 700;
-    padding: 0.3rem 0.3rem;
-    border-radius: 0;
-    border: 2px solid var(--line-bright);
-    background: var(--surface-2);
-    color: var(--accent);
-  }
-
   /* ---------- ledger ---------- */
   .ledger { padding: 1rem 1.2rem; }
   .ledger h3 { font-size: 0.7rem; color: var(--cyan); margin-bottom: 0.6rem; }
@@ -395,7 +367,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     footer::after { animation: none; opacity: 1; }
-    .chip, .btn-ghost, .btn-primary { transition: none; }
+    .btn-ghost, .btn-primary, .pin { transition: none; }
   }
 
   @media (max-width: 600px) {
@@ -415,7 +387,17 @@
     <p>Break a hard question into a chain of easier guesses, multiply them together, and you'll usually land within a factor of ten of the real answer. Drag any assumption below and watch the estimate update live &mdash; that's the whole method.</p>
   </header>
 
-  <div class="problem-chips" id="problemChips"></div>
+  <section class="map-panel panel-8bit" id="mapPanel" aria-label="Map">
+    <div class="map-image-wrap">
+      <img id="mapImage" alt="" />
+      <div class="pin-layer" id="pinLayer"></div>
+    </div>
+    <div class="map-caption" id="mapCaption"></div>
+    <div class="map-legend" id="mapLegend" style="display:none;">
+      <span><i class="swatch swatch-shop" aria-hidden="true"></i> donut shop (estimate)</span>
+      <span><i class="swatch swatch-people" aria-hidden="true"></i> ~500 people</span>
+    </div>
+  </section>
 
   <section class="question-row">
     <div class="question-text" id="questionText"></div>
@@ -434,17 +416,9 @@
     <button class="btn-primary" id="revealBtn" type="button" aria-expanded="false" aria-controls="breakdownWrap">&#9654; Reveal the breakdown</button>
   </div>
 
-  <section class="map-panel panel-8bit" id="mapPanel" aria-label="Map" style="display:none;">
-    <img id="mapImage" alt="" />
-    <div class="map-caption" id="mapCaption"></div>
-  </section>
-
   <div id="breakdownWrap" style="display:none;">
     <section class="stack-panel panel-8bit" aria-label="Estimation chain">
       <div class="factor-stack" id="factorStack"></div>
-      <div id="customControls" style="display:none; margin-top: 1rem;">
-        <button class="btn-primary" id="addFactorBtn" type="button">+ Add a factor</button>
-      </div>
     </section>
 
     <section class="ledger panel-8bit" aria-label="Running arithmetic">
@@ -461,7 +435,7 @@
     </section>
   </div>
 
-  <footer>5 classic problems, plus a blank chain for your own question</footer>
+  <footer>A Fermi estimate for Temecula's donut shops &mdash; pins scale live with your guesses</footer>
 </div>
 
 <script>
@@ -471,82 +445,19 @@
   // ============ DATA ============
   // kind: 'estimate' (editable slider) | 'fact' (fixed, shown but not adjustable)
   // isLog: true for quantities that span orders of magnitude (log-scale slider)
-  const PROBLEMS = [
-    {
-      id: 'donuts',
-      chip: 'Temecula Donuts',
-      question: "How many donut shops does Temecula, CA (population ≈ 110,000) need?",
-      resultUnit: 'donut shops',
-      reference: "A city Temecula's size realistically supports a few dozen donut and bakery shops — if your estimate lands somewhere in the tens, the method worked. (Compare that to a city 25x bigger, like Chicago, which needs an estimate in the hundreds to thousands — try dragging the population slider up to see the answer scale with it.)",
-      mapImage: 'temecula-map.png',
-      mapCaption: 'Temecula, CA',
-      factors: [
-        { id: 'pop', label: 'People in Temecula', unit: 'people', kind: 'estimate', op: 'mul', value: 110000, min: 20000, max: 3000000, isLog: true, rationale: "Temecula's population is about 110,000 — drag this up to see how the estimate scales for a bigger city." },
-        { id: 'frac', label: 'Fraction who eat donuts regularly', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.35, min: 0.02, max: 1, isLog: false, rationale: "Doesn't need to be exact — just plausible." },
-        { id: 'rate', label: 'Donuts per person per week', unit: 'donuts/person/wk', kind: 'estimate', op: 'mul', value: 3, min: 0.5, max: 10, isLog: false, rationale: 'A donut every couple of days for a regular eater.' },
-        { id: 'cap', label: 'Donuts a shop sells per week', unit: 'donuts/wk/shop', kind: 'estimate', op: 'div', value: 3000, min: 300, max: 20000, isLog: true, rationale: 'Roughly a few hundred donuts a day, most days.' },
-      ],
-    },
-    {
-      id: 'piano',
-      chip: 'Piano tuners',
-      question: "The original Fermi question: how many piano tuners work in a city of about 2.7 million people?",
-      resultUnit: 'piano tuners',
-      reference: "First posed by Enrico Fermi to his students. It's famous because a chain of rough guesses like this one reliably lands within a factor of 2–3 of real phone-directory counts — usually a few dozen tuners, not a few hundred or a handful.",
-      factors: [
-        { id: 'pop', label: 'People in the city', unit: 'people', kind: 'estimate', op: 'mul', value: 2700000, min: 100000, max: 10000000, isLog: true, rationale: 'Same city-sizing assumption as before.' },
-        { id: 'hh', label: 'People per household', unit: 'people/household', kind: 'estimate', op: 'div', value: 2.5, min: 1, max: 5, isLog: false, rationale: 'Converts people into households.' },
-        { id: 'pianofrac', label: 'Fraction of households with a piano', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.02, min: 0.002, max: 0.2, isLog: true, rationale: 'Pianos are uncommon but not rare — maybe 1 in 50 homes.' },
-        { id: 'tuneyr', label: 'Tunings per piano per year', unit: 'tunings/piano/yr', kind: 'estimate', op: 'mul', value: 1, min: 0.5, max: 3, isLog: false, rationale: 'A well-kept piano gets tuned about once a year.' },
-        { id: 'tunercap', label: 'Tunings one tuner does per year', unit: 'tunings/yr/tuner', kind: 'estimate', op: 'div', value: 1000, min: 200, max: 3000, isLog: true, rationale: 'A few tunings a day, most working days of the year.' },
-      ],
-    },
-    {
-      id: 'golfballs',
-      chip: 'Golf balls in a bus',
-      question: "How many golf balls would it take to completely fill a standard school bus?",
-      resultUnit: 'golf balls',
-      reference: "This flavor of problem — packing objects into a volume — shows up constantly in interview-style estimation practice. The packing-efficiency step is the one people most often forget entirely.",
-      factors: [
-        { id: 'busvol', label: 'Interior volume of the bus', unit: 'liters', kind: 'estimate', op: 'mul', value: 50000, min: 10000, max: 150000, isLog: true, rationale: 'About 10m × 2.5m × 2m of interior space.' },
-        { id: 'pack', label: 'Packing efficiency (gaps between balls)', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.6, min: 0.3, max: 0.75, isLog: false, rationale: "Spheres never pack perfectly — there's always wasted space between them." },
-        { id: 'ballvol', label: 'Volume of one golf ball', unit: 'liters', kind: 'estimate', op: 'div', value: 0.0416, min: 0.02, max: 0.08, isLog: true, rationale: 'A golf ball is about 4.3 cm across.' },
-      ],
-    },
-    {
-      id: 'grass',
-      chip: 'Blades of grass',
-      question: "About how many blades of grass are on a football field?",
-      resultUnit: 'blades of grass',
-      reference: "Agricultural turf estimates put dense lawn density on the order of 10⁴–10⁵ blades per square meter — right in the range this chain uses.",
-      factors: [
-        { id: 'area', label: 'Field area (incl. end zones)', unit: 'm²', kind: 'estimate', op: 'mul', value: 5400, min: 1000, max: 20000, isLog: true, rationale: 'A regulation field is roughly 49m × 110m.' },
-        { id: 'density', label: 'Blades of grass per square meter', unit: 'blades/m²', kind: 'estimate', op: 'mul', value: 50000, min: 5000, max: 200000, isLog: true, rationale: 'Dense turf is thicker than it looks up close.' },
-      ],
-    },
-    {
-      id: 'heartbeats',
-      chip: 'Lifetime heartbeats',
-      question: "About how many times does a human heart beat in an 80-year lifetime?",
-      resultUnit: 'heartbeats',
-      reference: "Commonly quoted as landing around 2.5–3 billion beats — a nice example of chaining exact unit-conversion facts (the middle three rows) with just two real guesses.",
-      factors: [
-        { id: 'rate', label: 'Resting heart rate', unit: 'beats/min', kind: 'estimate', op: 'mul', value: 70, min: 40, max: 120, isLog: false, rationale: 'A relaxed adult resting heart rate.' },
-        { id: 'mph', label: 'Minutes per hour', unit: 'min/hr', kind: 'fact', op: 'mul', value: 60 },
-        { id: 'hpd', label: 'Hours per day', unit: 'hr/day', kind: 'fact', op: 'mul', value: 24 },
-        { id: 'dpy', label: 'Days per year', unit: 'day/yr', kind: 'fact', op: 'mul', value: 365 },
-        { id: 'life', label: 'Years in a lifetime', unit: 'years', kind: 'estimate', op: 'mul', value: 80, min: 60, max: 100, isLog: false, rationale: 'A rough life expectancy.' },
-      ],
-    },
-    {
-      id: 'custom',
-      chip: 'Custom',
-      question: "What do you want to estimate?",
-      reference: "",
-      factors: [],
-      isCustom: true,
-    },
-  ];
+  const PROBLEM = {
+    question: "How many donut shops does Temecula, CA (population ≈ 110,000) need?",
+    resultUnit: 'donut shops',
+    reference: "A city Temecula's size realistically supports a few dozen donut and bakery shops — if your estimate lands somewhere in the tens, the method worked. (Compare that to a city 25x bigger, like Chicago, which needs an estimate in the hundreds to thousands — try dragging the population slider up to see the answer scale with it.)",
+    mapImage: 'temecula-map.png',
+    mapCaption: 'Temecula, CA',
+    factors: [
+      { id: 'pop', label: 'People in Temecula', unit: 'people', kind: 'estimate', op: 'mul', value: 110000, min: 20000, max: 3000000, isLog: true, rationale: "Temecula's population is about 110,000 — drag this up to see how the estimate scales for a bigger city." },
+      { id: 'frac', label: 'Fraction who eat donuts regularly', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.35, min: 0.02, max: 1, isLog: false, rationale: "Doesn't need to be exact — just plausible." },
+      { id: 'rate', label: 'Donuts per person per week', unit: 'donuts/person/wk', kind: 'estimate', op: 'mul', value: 3, min: 0.5, max: 10, isLog: false, rationale: 'A donut every couple of days for a regular eater.' },
+      { id: 'cap', label: 'Donuts a shop sells per week', unit: 'donuts/wk/shop', kind: 'estimate', op: 'div', value: 3000, min: 300, max: 20000, isLog: true, rationale: 'Roughly a few hundred donuts a day, most days.' },
+    ],
+  };
 
   // ============ FORMATTING ============
   const SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
@@ -600,31 +511,93 @@
     return { result: product, steps: steps };
   }
 
-  // ============ STATE ============
-  let currentProblem = null;
-  let currentFactors = [];
-  let customCounter = 0;
-  let revealed = false;
+  // ============ MAP PIN OVERLAY ============
+  // Deterministic scatter (seeded PRNG, not Math.random) so pin positions stay put
+  // between renders instead of jumping around every time the count changes.
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function makeScatter(n, seed, marginX, marginY) {
+    const rng = mulberry32(seed);
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      pts.push([marginX + rng() * (100 - 2 * marginX), marginY + rng() * (100 - 2 * marginY)]);
+    }
+    return pts;
+  }
 
-  // Classroom pacing: the breakdown (sliders, ledger, computed estimate) stays
-  // hidden until the instructor explicitly reveals it, so the question can be
-  // posed to a class on its own first.
+  const MAX_SHOP_PINS = 150;
+  const MAX_PEOPLE_PINS = 280;
+  const PEOPLE_PER_PIN = 500; // one small pin stands in for ~500 people
+
+  const shopPinPositions = makeScatter(MAX_SHOP_PINS, 1337, 4, 10);
+  const peoplePinPositions = makeScatter(MAX_PEOPLE_PINS, 9001, 3, 6);
+
+  const pinLayer = document.getElementById('pinLayer');
+  const peoplePinEls = peoplePinPositions.map(function (p) {
+    const el = document.createElement('div');
+    el.className = 'pin pin-people';
+    el.style.left = p[0].toFixed(2) + '%';
+    el.style.top = p[1].toFixed(2) + '%';
+    pinLayer.appendChild(el);
+    return el;
+  });
+  const shopPinEls = shopPinPositions.map(function (p) {
+    const el = document.createElement('div');
+    el.className = 'pin pin-shop';
+    el.style.left = p[0].toFixed(2) + '%';
+    el.style.top = p[1].toFixed(2) + '%';
+    pinLayer.appendChild(el);
+    return el;
+  });
+
+  function updatePins(estimate) {
+    if (!revealed) {
+      peoplePinEls.forEach(function (el) { el.classList.remove('active'); });
+      shopPinEls.forEach(function (el) { el.classList.remove('active'); });
+      mapLegend.style.display = 'none';
+      return;
+    }
+    const popFactor = currentFactors.filter(function (f) { return f.id === 'pop'; })[0];
+    const population = popFactor ? popFactor.value : 0;
+    const peopleCount = Math.min(MAX_PEOPLE_PINS, Math.max(0, Math.round(population / PEOPLE_PER_PIN)));
+    const shopCount = Math.min(MAX_SHOP_PINS, Math.max(0, Math.round(estimate)));
+    peoplePinEls.forEach(function (el, i) { el.classList.toggle('active', i < peopleCount); });
+    shopPinEls.forEach(function (el, i) { el.classList.toggle('active', i < shopCount); });
+    mapLegend.style.display = 'flex';
+  }
+
+  // ============ STATE ============
+  let currentFactors = [];
+  let revealed = false;
+  let lastEstimate = 0;
+
+  // Classroom pacing: the breakdown (sliders, ledger, computed estimate) -- and the
+  // map pins, which would otherwise give away the answer -- stay hidden until the
+  // instructor explicitly reveals it, so the question can be posed to a class first.
   function setRevealed(val) {
     revealed = val;
     breakdownWrap.style.display = val ? 'flex' : 'none';
     resetBtn.style.display = val ? '' : 'none';
     revealBtn.textContent = val ? '▲ Hide the breakdown' : '▶ Reveal the breakdown';
     revealBtn.setAttribute('aria-expanded', val ? 'true' : 'false');
+    updatePins(lastEstimate);
   }
 
-  const problemChipsHost = document.getElementById('problemChips');
+  function cloneFactors(factors) {
+    return factors.map(function (f) { return Object.assign({}, f); });
+  }
+
   const questionText = document.getElementById('questionText');
-  const mapPanel = document.getElementById('mapPanel');
   const mapImage = document.getElementById('mapImage');
   const mapCaption = document.getElementById('mapCaption');
+  const mapLegend = document.getElementById('mapLegend');
   const factorStackHost = document.getElementById('factorStack');
-  const customControls = document.getElementById('customControls');
-  const addFactorBtn = document.getElementById('addFactorBtn');
   const resetBtn = document.getElementById('resetBtn');
   const ledgerList = document.getElementById('ledgerList');
   const answerValue = document.getElementById('answerValue');
@@ -636,72 +609,6 @@
   const actualUnit = document.getElementById('actualUnit');
   const revealBtn = document.getElementById('revealBtn');
   const breakdownWrap = document.getElementById('breakdownWrap');
-
-  const chipEls = PROBLEMS.map(function (p) {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip';
-    chip.textContent = p.chip;
-    chip.addEventListener('click', function () { loadProblem(p.id); });
-    problemChipsHost.appendChild(chip);
-    return chip;
-  });
-
-  function cloneFactors(factors) {
-    return factors.map(function (f) { return Object.assign({}, f); });
-  }
-
-  function loadProblem(id) {
-    currentProblem = PROBLEMS.filter(function (p) { return p.id === id; })[0];
-    currentFactors = cloneFactors(currentProblem.factors);
-    chipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', PROBLEMS[i].id === id); });
-
-    if (currentProblem.isCustom) {
-      questionText.innerHTML = '';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'question-input mono';
-      input.placeholder = 'e.g. How many pizzas are eaten in this city on a Friday night?';
-      questionText.appendChild(input);
-      customControls.style.display = 'block';
-      if (currentFactors.length === 0) {
-        addFactor('e.g. Something you can guess', 10, '', 'mul');
-        addFactor('e.g. Another factor', 10, '', 'mul');
-      }
-    } else {
-      questionText.textContent = currentProblem.question;
-      customControls.style.display = 'none';
-    }
-
-    if (currentProblem.mapImage) {
-      mapImage.src = currentProblem.mapImage;
-      mapImage.alt = currentProblem.mapCaption || '';
-      mapCaption.textContent = currentProblem.mapCaption || '';
-      mapPanel.style.display = 'flex';
-    } else {
-      mapImage.removeAttribute('src');
-      mapPanel.style.display = 'none';
-    }
-
-    actualInput.value = '';
-    actualUnit.textContent = currentProblem.resultUnit || '';
-    setRevealed(false);
-
-    renderStack();
-  }
-
-  function addFactor(label, value, unit, op) {
-    customCounter += 1;
-    currentFactors.push({
-      id: 'custom' + customCounter, label: label, unit: unit, kind: 'custom', op: op, value: value,
-    });
-    renderStack();
-  }
-
-  function removeFactor(id) {
-    currentFactors = currentFactors.filter(function (f) { return f.id !== id; });
-    renderStack();
-  }
 
   function renderStack() {
     factorStackHost.innerHTML = '';
@@ -725,50 +632,14 @@
 
     const labelRow = document.createElement('div');
     labelRow.className = 'factor-label-row';
-
-    if (f.kind === 'custom') {
-      const labelInput = document.createElement('input');
-      labelInput.type = 'text';
-      labelInput.className = 'factor-text-input mono';
-      labelInput.value = f.label;
-      labelInput.style.flex = '1';
-      labelInput.addEventListener('input', function () { f.label = labelInput.value; });
-      labelRow.appendChild(labelInput);
-
-      const opSelect = document.createElement('select');
-      opSelect.className = 'factor-op-select';
-      ['mul', 'div'].forEach(function (opt) {
-        const o = document.createElement('option');
-        o.value = opt;
-        o.textContent = opt === 'mul' ? '×' : '÷';
-        if (f.op === opt) o.selected = true;
-        opSelect.appendChild(o);
-      });
-      opSelect.addEventListener('change', function () {
-        f.op = opSelect.value;
-        opEl.textContent = f.op === 'div' ? '÷' : '×';
-        compute();
-      });
-      labelRow.appendChild(opSelect);
-
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'factor-remove';
-      removeBtn.textContent = '✕';
-      removeBtn.setAttribute('aria-label', 'Remove this factor');
-      removeBtn.addEventListener('click', function () { removeFactor(f.id); });
-      labelRow.appendChild(removeBtn);
-    } else {
-      const labelEl = document.createElement('span');
-      labelEl.className = 'factor-label';
-      labelEl.textContent = f.label;
-      labelRow.appendChild(labelEl);
-
-      const tag = document.createElement('span');
-      tag.className = 'factor-tag';
-      tag.textContent = f.kind === 'fact' ? 'fact' : 'estimate';
-      labelRow.appendChild(tag);
-    }
+    const labelEl = document.createElement('span');
+    labelEl.className = 'factor-label';
+    labelEl.textContent = f.label;
+    labelRow.appendChild(labelEl);
+    const tag = document.createElement('span');
+    tag.className = 'factor-tag';
+    tag.textContent = f.kind === 'fact' ? 'fact' : 'estimate';
+    labelRow.appendChild(tag);
     main.appendChild(labelRow);
 
     const control = document.createElement('div');
@@ -815,7 +686,8 @@
       unitEl.textContent = f.unit;
       valWrap.appendChild(unitEl);
       control.appendChild(valWrap);
-    } else if (f.kind === 'fact') {
+    } else {
+      // fact: fixed, non-editable
       const valWrap = document.createElement('div');
       valWrap.className = 'factor-value-wrap';
       const valueSpan = document.createElement('input');
@@ -829,28 +701,6 @@
       unitEl.textContent = f.unit;
       valWrap.appendChild(unitEl);
       control.appendChild(valWrap);
-    } else {
-      // custom: editable number + unit text
-      const valueInput = document.createElement('input');
-      valueInput.type = 'text';
-      valueInput.className = 'factor-value-input mono';
-      valueInput.value = formatNumber(f.value);
-      valueInput.addEventListener('change', function () {
-        const parsed = parseFloat(valueInput.value.replace(/,/g, ''));
-        f.value = isNaN(parsed) ? 0 : parsed;
-        valueInput.value = formatNumber(f.value);
-        compute();
-      });
-      control.appendChild(valueInput);
-
-      const unitInput = document.createElement('input');
-      unitInput.type = 'text';
-      unitInput.className = 'factor-text-input mono';
-      unitInput.style.width = '7rem';
-      unitInput.placeholder = 'unit';
-      unitInput.value = f.unit || '';
-      unitInput.addEventListener('input', function () { f.unit = unitInput.value; });
-      control.appendChild(unitInput);
     }
     main.appendChild(control);
 
@@ -867,6 +717,7 @@
 
   function compute() {
     const evald = evalChain(currentFactors);
+    lastEstimate = evald.result;
     ledgerList.innerHTML = '';
     // Note: the running total's unit isn't tracked here (unlike the Dimensional
     // Analysis Lab's rigorous engine) -- this tool is about order-of-magnitude
@@ -881,7 +732,7 @@
         '<span>→ ' + formatNumber(s.runningAfter) + '</span>';
       ledgerList.appendChild(li);
     });
-    const resultUnit = currentProblem.resultUnit || '';
+    const resultUnit = PROBLEM.resultUnit || '';
     const finalLi = document.createElement('li');
     finalLi.className = 'final-line';
     finalLi.innerHTML = '<span class="mult">=</span><span>' + formatNumber(evald.result) + (resultUnit ? ' ' + resultUnit : '') + '</span>';
@@ -889,8 +740,9 @@
 
     answerValue.textContent = formatNumber(evald.result) + (resultUnit ? ' ' + resultUnit : '');
     answerOrder.textContent = orderOfMagnitude(evald.result);
-    answerReference.textContent = currentProblem.reference;
+    answerReference.textContent = PROBLEM.reference;
     updateActualCompare(evald.result, resultUnit);
+    updatePins(evald.result);
     liveRegion.textContent = 'Estimate: ' + formatNumber(evald.result) + ' ' + resultUnit + '. ' + orderOfMagnitude(evald.result);
   }
 
@@ -908,20 +760,25 @@
       '</strong> &mdash; your estimate is ' + ratioStr + '&times; ' + (bigger ? 'higher' : 'lower') + '.';
   }
 
-  addFactorBtn.addEventListener('click', function () {
-    addFactor('New factor', 10, '', 'mul');
-  });
   resetBtn.addEventListener('click', function () {
     // Reset only the slider values back to defaults -- deliberately doesn't touch
     // the reveal state or the actual-answer field, since an instructor mid-demo
     // wants to re-run the sliders, not re-hide the breakdown they just showed.
-    currentFactors = cloneFactors(currentProblem.factors);
+    currentFactors = cloneFactors(PROBLEM.factors);
     renderStack();
   });
   revealBtn.addEventListener('click', function () { setRevealed(!revealed); });
   actualInput.addEventListener('input', compute);
 
-  loadProblem('donuts');
+  // ============ INIT ============
+  questionText.textContent = PROBLEM.question;
+  mapImage.src = PROBLEM.mapImage;
+  mapImage.alt = PROBLEM.mapCaption || '';
+  mapCaption.textContent = PROBLEM.mapCaption || '';
+  actualUnit.textContent = PROBLEM.resultUnit || '';
+  currentFactors = cloneFactors(PROBLEM.factors);
+  setRevealed(false);
+  renderStack();
 })();
 </script>
 </body>
