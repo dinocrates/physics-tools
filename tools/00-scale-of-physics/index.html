@@ -362,7 +362,7 @@
     { id: 'sand',      label: 'Grain of sand',                   meters: 5e-4,    kind: 'poly',      fact: "Roughly 7.5 quintillion of these make up all the sand on every beach and desert on Earth." },
     { id: 'insect',    label: 'Insects (ant)',                   meters: 8e-3,    kind: 'pixel',     fact: "Pound for pound, an ant can carry 10 to 50 times its own body weight." },
     { id: 'human',     label: 'Human being',                     meters: 1.7,     kind: 'pixel',     fact: "You. Right about in the middle of this entire scale, logarithmically speaking." },
-    { id: 'car',       label: 'Car',                             meters: 4.5,     kind: 'pixel',     fact: "A typical sedan — about the length of three people lying head to toe." },
+    { id: 'car',       label: 'Car',                             meters: 5.68,    kind: 'pixel',     fact: "A Tesla Cybertruck is about 5.7 m long — roughly three and a half people lying head to toe." },
     { id: 'plane',     label: 'Airplane',                        meters: 60,      kind: 'pixel',     fact: "A Boeing 747 is longer than most city blocks are wide." },
     { id: 'building',  label: 'Skyscraper',                      meters: 300,     kind: 'pixel',     fact: "Roughly the height of the Eiffel Tower." },
     { id: 'mountain',  label: 'Mountain (Everest)',              meters: 8849,    kind: 'pixel',     fact: "The tallest point on Earth's surface, measured from sea level." },
@@ -577,14 +577,16 @@
       return s;
     }
     if (stop.id === 'car') {
-      let s = '<rect x="18" y="52" width="64" height="16" fill="var(--cyan)"/>';
-      s += '<rect x="32" y="38" width="36" height="16" fill="var(--cyan)"/>';
-      s += '<rect x="36" y="41" width="12" height="10" fill="var(--bg)"/>';
-      s += '<rect x="50" y="41" width="12" height="10" fill="var(--bg)"/>';
-      s += '<circle cx="32" cy="70" r="7" fill="var(--ink)"/>';
-      s += '<circle cx="68" cy="70" r="7" fill="var(--ink)"/>';
-      s += '<circle cx="32" cy="70" r="3" fill="var(--line-bright)"/>';
-      s += '<circle cx="68" cy="70" r="3" fill="var(--line-bright)"/>';
+      // low-poly, all-straight-edges silhouette — a Cybertruck is basically already an icon.
+      // Long low flat hood, one very steep windshield line, short flat roof, a shallower
+      // rear-glass line down to a long open bed (the un-filled region above the bed rail
+      // reads as the open cargo area).
+      let s = '<polygon points="14,64 14,58 40,55 48,30 58,30 66,48 92,48 92,64" fill="var(--ink)" stroke="var(--surface-2)" stroke-width="1" stroke-linejoin="round"/>';
+      s += '<polygon points="42,53 48,33 58,33 64,47 42,47" fill="var(--bg)"/>';
+      s += '<circle cx="30" cy="63" r="7" fill="var(--bg)"/>';
+      s += '<circle cx="82" cy="63" r="7" fill="var(--bg)"/>';
+      s += '<circle cx="30" cy="63" r="3" fill="var(--line-bright)"/>';
+      s += '<circle cx="82" cy="63" r="3" fill="var(--line-bright)"/>';
       return s;
     }
     if (stop.id === 'plane') {
