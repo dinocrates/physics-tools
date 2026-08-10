@@ -157,7 +157,9 @@
     outline-offset: 1px;
   }
   #valInput { width: 6.5rem; }
-  #fromInput, #toInput { width: 9rem; }
+  .unit-field { width: 13rem; position: relative; }
+  .unit-input-row { display: flex; gap: 0.35rem; }
+  .unit-input-row input { flex: 1; min-width: 0; width: auto; }
   .arrow-sep {
     color: var(--ink-faint);
     font-size: 1.3rem;
@@ -191,6 +193,116 @@
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
   .btn-ghost:disabled { opacity: 0.45; cursor: default; }
+
+  /* ---------- unit picker ---------- */
+  .btn-picker {
+    flex: none;
+    background: var(--surface-2);
+    border: 1.5px solid var(--line-strong);
+    color: var(--ink-soft);
+    border-radius: 4px;
+    padding: 0 0.6rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+  .btn-picker:hover, .btn-picker[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+  .btn-picker .chev { font-size: 0.6rem; }
+
+  .unit-popover {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    z-index: 30;
+    width: min(300px, calc(100vw - 2.5rem));
+    max-height: min(26rem, 70vh);
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1.5px solid var(--line-strong);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .unit-popover[hidden] { display: none; }
+  .unit-popover.align-right { left: auto; right: 0; }
+
+  .picker-section { display: flex; flex-direction: column; gap: 0.5rem; }
+  .picker-section-label {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    font-weight: 700;
+  }
+  .fam-group { display: flex; flex-direction: column; gap: 0.3rem; }
+  .fam-group-name {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    font-weight: 700;
+  }
+  .fam-chip-row { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .unit-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    background: var(--surface-2);
+    border: 1.5px solid var(--line-strong);
+    color: var(--ink);
+    border-radius: 4px;
+    padding: 0.22rem 0.5rem;
+  }
+  .unit-chip:hover { border-color: var(--accent); }
+  .unit-chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+  .exp-chip-row { display: flex; align-items: center; gap: 0.35rem; }
+  .exp-chip-row .exp-label { font-size: 0.72rem; color: var(--ink-faint); }
+  .exp-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    width: 1.85rem;
+    height: 1.85rem;
+    background: var(--surface-2);
+    border: 1.5px solid var(--line-strong);
+    color: var(--ink);
+    border-radius: 4px;
+  }
+  .exp-chip:hover { border-color: var(--accent); }
+  .exp-chip.active { background: var(--accent-warm); border-color: var(--accent-warm); color: #fff; font-weight: 700; }
+
+  .link-btn {
+    align-self: flex-start;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .link-btn:hover { color: var(--accent-warm); }
+  .link-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .picker-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    background: var(--surface-2);
+    border: 1px dashed var(--line-strong);
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+  }
+  .picker-preview .ppv-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 700; }
+  .picker-preview .ppv-value { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.95rem; color: var(--ink); }
+
+  .popover-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 
   .console-sub {
     display: flex;
@@ -443,7 +555,7 @@
   @media (max-width: 600px) {
     header.masthead h1 { font-size: 1.5rem; }
     .console-row { flex-direction: column; align-items: stretch; }
-    #fromInput, #toInput, #valInput { width: 100%; }
+    .unit-field, #valInput { width: 100%; }
     .arrow-sep { align-self: center; padding-bottom: 0; }
   }
 </style>
@@ -463,14 +575,22 @@
         <label for="valInput">Value</label>
         <input type="number" id="valInput" value="60" step="any" class="mono" />
       </div>
-      <div class="field">
+      <div class="field unit-field">
         <label for="fromInput">From units</label>
-        <input type="text" id="fromInput" value="mi/hr" class="mono" autocomplete="off" spellcheck="false" />
+        <div class="unit-input-row">
+          <input type="text" id="fromInput" value="mi/hr" class="mono" autocomplete="off" spellcheck="false" />
+          <button type="button" class="btn-picker" id="fromPickerBtn" aria-haspopup="true" aria-controls="fromPopover" aria-expanded="false">Pick<span class="chev">&#9662;</span></button>
+        </div>
+        <div class="unit-popover" id="fromPopover" role="group" aria-label="Pick a from unit" hidden></div>
       </div>
       <div class="arrow-sep" aria-hidden="true">&rarr;</div>
-      <div class="field">
+      <div class="field unit-field">
         <label for="toInput">To units</label>
-        <input type="text" id="toInput" value="m/s" class="mono" autocomplete="off" spellcheck="false" />
+        <div class="unit-input-row">
+          <input type="text" id="toInput" value="m/s" class="mono" autocomplete="off" spellcheck="false" />
+          <button type="button" class="btn-picker" id="toPickerBtn" aria-haspopup="true" aria-controls="toPopover" aria-expanded="false">Pick<span class="chev">&#9662;</span></button>
+        </div>
+        <div class="unit-popover" id="toPopover" role="group" aria-label="Pick a to unit" hidden></div>
       </div>
       <button class="btn-primary" id="convertBtn">Convert</button>
     </div>
@@ -799,6 +919,218 @@
     });
     examplesRow.appendChild(btn);
   });
+
+  // ============ UNIT PICKER ============
+  const FAMILY_LABELS = { length: 'Length', mass: 'Mass', time: 'Time', volume: 'Volume' };
+  const FAMILY_UNITS = {
+    length: ['mm', 'cm', 'm', 'km', 'in', 'ft', 'yd', 'mi'],
+    mass: ['mg', 'g', 'kg', 'oz', 'lb', 'ton'],
+    time: ['ms', 's', 'min', 'hr', 'day', 'week', 'year'],
+    volume: ['mL', 'L', 'tsp', 'tbsp', 'floz', 'cup', 'pt', 'qt', 'gal'],
+  };
+  const EXP_OPTIONS = [1, 2, 3];
+
+  function buildExprString(state) {
+    if (!state.numUnit) return '';
+    const numPart = state.numUnit + (state.numExp !== 1 ? '^' + state.numExp : '');
+    if (!state.hasDen || !state.denUnit) return numPart;
+    const denPart = state.denUnit + (state.denExp !== 1 ? '^' + state.denExp : '');
+    return numPart + '/' + denPart;
+  }
+
+  function previewString(state) {
+    if (!state.numUnit) return '—';
+    const numPart = unitLabel(state.numUnit, state.numExp);
+    if (!state.hasDen || !state.denUnit) return numPart;
+    return numPart + '/' + unitLabel(state.denUnit, state.denExp);
+  }
+
+  function buildChipSection(labelText, onPick) {
+    const section = document.createElement('div');
+    section.className = 'picker-section';
+    const label = document.createElement('div');
+    label.className = 'picker-section-label';
+    label.textContent = labelText;
+    section.appendChild(label);
+    const famsWrap = document.createElement('div');
+    famsWrap.style.display = 'flex';
+    famsWrap.style.flexDirection = 'column';
+    famsWrap.style.gap = '0.5rem';
+    Object.keys(FAMILY_UNITS).forEach(function (fam) {
+      const g = document.createElement('div');
+      g.className = 'fam-group';
+      const name = document.createElement('div');
+      name.className = 'fam-group-name';
+      name.textContent = FAMILY_LABELS[fam];
+      g.appendChild(name);
+      const row = document.createElement('div');
+      row.className = 'fam-chip-row';
+      FAMILY_UNITS[fam].forEach(function (u) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'unit-chip';
+        chip.textContent = u;
+        chip.dataset.unit = u;
+        chip.addEventListener('click', function () { onPick(u); });
+        row.appendChild(chip);
+      });
+      g.appendChild(row);
+      famsWrap.appendChild(g);
+    });
+    section.appendChild(famsWrap);
+    const expRow = document.createElement('div');
+    expRow.className = 'exp-chip-row';
+    const expLabel = document.createElement('span');
+    expLabel.className = 'exp-label';
+    expLabel.textContent = 'power:';
+    expRow.appendChild(expLabel);
+    const onExp = { fn: null };
+    EXP_OPTIONS.forEach(function (e) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'exp-chip';
+      b.textContent = toSuperscript(e);
+      b.dataset.exp = e;
+      b.addEventListener('click', function () { if (onExp.fn) onExp.fn(e); });
+      expRow.appendChild(b);
+    });
+    section.appendChild(expRow);
+    return { section: section, famsWrap: famsWrap, expRow: expRow, setExpHandler: function (fn) { onExp.fn = fn; } };
+  }
+
+  const pickerInstances = [];
+
+  function initUnitPicker(input, triggerBtn, popoverEl) {
+    const state = { numUnit: null, numExp: 1, hasDen: false, denUnit: null, denExp: 1 };
+
+    const numUi = buildChipSection('Unit', function (u) { state.numUnit = u; state.numExp = 1; render(); });
+    numUi.setExpHandler(function (e) { state.numExp = e; render(); });
+    popoverEl.appendChild(numUi.section);
+
+    const denToggleBtn = document.createElement('button');
+    denToggleBtn.type = 'button';
+    denToggleBtn.className = 'link-btn';
+    denToggleBtn.textContent = '+ add "per" (rate)';
+    denToggleBtn.addEventListener('click', function () {
+      state.hasDen = !state.hasDen;
+      if (!state.hasDen) { state.denUnit = null; state.denExp = 1; }
+      render();
+    });
+    popoverEl.appendChild(denToggleBtn);
+
+    const denUi = buildChipSection('Per', function (u) { state.denUnit = u; state.denExp = 1; render(); });
+    denUi.setExpHandler(function (e) { state.denExp = e; render(); });
+    denUi.section.style.display = 'none';
+    popoverEl.appendChild(denUi.section);
+
+    const previewRow = document.createElement('div');
+    previewRow.className = 'picker-preview';
+    const previewLabelEl = document.createElement('span');
+    previewLabelEl.className = 'ppv-label';
+    previewLabelEl.textContent = 'Preview';
+    const previewValueEl = document.createElement('span');
+    previewValueEl.className = 'ppv-value';
+    previewRow.appendChild(previewLabelEl);
+    previewRow.appendChild(previewValueEl);
+    popoverEl.appendChild(previewRow);
+
+    const actions = document.createElement('div');
+    actions.className = 'popover-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn-ghost';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function () { close(); triggerBtn.focus(); });
+    const useBtn = document.createElement('button');
+    useBtn.type = 'button';
+    useBtn.className = 'btn-primary';
+    useBtn.textContent = 'Use this unit';
+    useBtn.addEventListener('click', function () {
+      const expr = buildExprString(state);
+      if (expr) input.value = expr;
+      close();
+      input.focus();
+    });
+    actions.appendChild(cancelBtn);
+    actions.appendChild(useBtn);
+    popoverEl.appendChild(actions);
+
+    function render() {
+      numUi.famsWrap.querySelectorAll('.unit-chip').forEach(function (c) {
+        c.classList.toggle('active', c.dataset.unit === state.numUnit);
+      });
+      numUi.expRow.querySelectorAll('.exp-chip').forEach(function (c) {
+        c.classList.toggle('active', Number(c.dataset.exp) === state.numExp);
+      });
+      numUi.expRow.style.display = state.numUnit ? 'flex' : 'none';
+
+      denUi.section.style.display = state.hasDen ? 'flex' : 'none';
+      denToggleBtn.textContent = state.hasDen ? '✕ remove "per"' : '+ add "per" (rate)';
+      denUi.famsWrap.querySelectorAll('.unit-chip').forEach(function (c) {
+        c.classList.toggle('active', c.dataset.unit === state.denUnit);
+      });
+      denUi.expRow.querySelectorAll('.exp-chip').forEach(function (c) {
+        c.classList.toggle('active', Number(c.dataset.exp) === state.denExp);
+      });
+      denUi.expRow.style.display = state.denUnit ? 'flex' : 'none';
+
+      previewValueEl.textContent = previewString(state);
+      useBtn.disabled = !state.numUnit;
+    }
+
+    function onDocMouseDown(e) {
+      if (!popoverEl.contains(e.target) && e.target !== triggerBtn && !triggerBtn.contains(e.target)) close();
+    }
+    function onDocKeyDown(e) {
+      if (e.key === 'Escape') { close(); triggerBtn.focus(); }
+    }
+
+    function positionPopover() {
+      popoverEl.classList.remove('align-right');
+      const rect = popoverEl.getBoundingClientRect();
+      if (rect.right > window.innerWidth - 8) popoverEl.classList.add('align-right');
+    }
+
+    function open() {
+      pickerInstances.forEach(function (p) { p.close(); });
+      state.numUnit = null; state.numExp = 1; state.hasDen = false; state.denUnit = null; state.denExp = 1;
+      try {
+        const parsed = parseUnitExpr(input.value);
+        if (parsed.num.length === 1) {
+          state.numUnit = parsed.num[0].symbol;
+          state.numExp = parsed.num[0].exp;
+          if (parsed.den.length === 1) {
+            state.hasDen = true;
+            state.denUnit = parsed.den[0].symbol;
+            state.denExp = parsed.den[0].exp;
+          }
+        }
+      } catch (e) { /* start blank if the current text doesn't fit the picker's shape */ }
+      render();
+      popoverEl.hidden = false;
+      triggerBtn.setAttribute('aria-expanded', 'true');
+      positionPopover();
+      document.addEventListener('mousedown', onDocMouseDown, true);
+      document.addEventListener('keydown', onDocKeyDown, true);
+    }
+    function close() {
+      popoverEl.hidden = true;
+      triggerBtn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('mousedown', onDocMouseDown, true);
+      document.removeEventListener('keydown', onDocKeyDown, true);
+    }
+
+    triggerBtn.addEventListener('click', function () {
+      if (popoverEl.hidden) open(); else close();
+    });
+
+    const instance = { open: open, close: close };
+    pickerInstances.push(instance);
+    return instance;
+  }
+
+  initUnitPicker(fromInput, document.getElementById('fromPickerBtn'), document.getElementById('fromPopover'));
+  initUnitPicker(toInput, document.getElementById('toPickerBtn'), document.getElementById('toPopover'));
 
   let animToken = 0; // increments to cancel in-flight animations
   let skipRequested = false;
