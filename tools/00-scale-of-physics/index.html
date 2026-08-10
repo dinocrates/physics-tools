@@ -504,14 +504,16 @@
       const abs = Math.abs(delta);
       const SPACING = 168; // px between adjacent card centers
       // Asymmetric falloff to sell "zooming out through scale": stops you've already
-      // passed (delta < 0, smaller/left) shrink away quickly; the stop coming up next
-      // (delta > 0, ~10x bigger/right) stays large much longer before it takes over.
+      // passed (delta < 0, smaller/left) shrink away quickly. The stop coming up next
+      // (delta > 0, ~10x bigger/right) actually starts OVERSIZED and shrinks down to
+      // its normal size as it arrives at focus -- it's rushing toward you and settling
+      // in, not growing from nothing. Clamped so it never outgrows the viewport.
       let scale, opacity;
       if (delta <= 0) {
         scale = Math.max(0.15, 1 + delta * 0.6);
         opacity = Math.max(0, 1 + delta * 0.9);
       } else {
-        scale = Math.max(0.3, 1 - delta * 0.15);
+        scale = Math.min(1.45, 1 + delta * 0.25);
         opacity = Math.max(0, 1 - delta * 0.35);
       }
       card.style.transform = 'translateX(' + (delta * SPACING).toFixed(1) + 'px) scale(' + scale.toFixed(3) + ')';
