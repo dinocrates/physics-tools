@@ -169,6 +169,36 @@
     color: var(--cyan);
     font-weight: 700;
   }
+
+  /* ---------- actual-answer + reveal (classroom pacing controls) ---------- */
+  .actual-row { display: flex; flex-direction: column; gap: 0.4rem; }
+  .actual-row label {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .actual-optional { text-transform: none; letter-spacing: normal; font-weight: 400; }
+  .actual-control { display: flex; align-items: center; gap: 0.6rem; }
+  input.actual-input {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 0.45rem 0.6rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--gold);
+    width: 9rem;
+  }
+  .actual-unit { font-size: 0.85rem; color: var(--ink-faint); }
+
+  .reveal-row { display: flex; justify-content: center; }
+  #revealBtn { width: 100%; max-width: 28rem; }
+
+  #breakdownWrap { display: flex; flex-direction: column; gap: 1.85rem; }
+
+  .answer-actual-compare { font-size: 0.88rem; color: var(--ink); margin-top: 0.9rem; }
+  .answer-actual-compare strong { color: var(--gold); }
+
   .btn-ghost {
     flex: none;
     background: var(--surface-2);
@@ -389,32 +419,47 @@
 
   <section class="question-row">
     <div class="question-text" id="questionText"></div>
-    <button class="btn-ghost" id="resetBtn" type="button">&#8635; Reset guesses</button>
+    <button class="btn-ghost" id="resetBtn" type="button" style="display:none;">&#8635; Reset guesses</button>
   </section>
+
+  <section class="actual-row" aria-label="Actual answer">
+    <label for="actualInput">Actual answer <span class="actual-optional">(optional &mdash; for comparison once revealed)</span></label>
+    <div class="actual-control">
+      <input type="text" id="actualInput" class="actual-input mono" placeholder="e.g. 12" inputmode="decimal" autocomplete="off" />
+      <span class="actual-unit" id="actualUnit"></span>
+    </div>
+  </section>
+
+  <div class="reveal-row">
+    <button class="btn-primary" id="revealBtn" type="button" aria-expanded="false" aria-controls="breakdownWrap">&#9654; Reveal the breakdown</button>
+  </div>
 
   <section class="map-panel panel-8bit" id="mapPanel" aria-label="Map" style="display:none;">
     <img id="mapImage" alt="" />
     <div class="map-caption" id="mapCaption"></div>
   </section>
 
-  <section class="stack-panel panel-8bit" aria-label="Estimation chain">
-    <div class="factor-stack" id="factorStack"></div>
-    <div id="customControls" style="display:none; margin-top: 1rem;">
-      <button class="btn-primary" id="addFactorBtn" type="button">+ Add a factor</button>
-    </div>
-  </section>
+  <div id="breakdownWrap" style="display:none;">
+    <section class="stack-panel panel-8bit" aria-label="Estimation chain">
+      <div class="factor-stack" id="factorStack"></div>
+      <div id="customControls" style="display:none; margin-top: 1rem;">
+        <button class="btn-primary" id="addFactorBtn" type="button">+ Add a factor</button>
+      </div>
+    </section>
 
-  <section class="ledger panel-8bit" aria-label="Running arithmetic">
-    <h3>Running the numbers</h3>
-    <ol id="ledgerList"></ol>
-  </section>
+    <section class="ledger panel-8bit" aria-label="Running arithmetic">
+      <h3>Running the numbers</h3>
+      <ol id="ledgerList"></ol>
+    </section>
 
-  <section class="answer-panel panel-8bit" aria-label="Final estimate">
-    <div class="answer-value mono" id="answerValue">&mdash;</div>
-    <div class="answer-order mono" id="answerOrder"></div>
-    <p class="answer-reference" id="answerReference"></p>
-    <span class="sr-only" id="liveRegion" aria-live="polite"></span>
-  </section>
+    <section class="answer-panel panel-8bit" aria-label="Final estimate">
+      <div class="answer-value mono" id="answerValue">&mdash;</div>
+      <div class="answer-order mono" id="answerOrder"></div>
+      <p class="answer-reference" id="answerReference"></p>
+      <div class="answer-actual-compare mono" id="answerActualCompare"></div>
+      <span class="sr-only" id="liveRegion" aria-live="polite"></span>
+    </section>
+  </div>
 
   <footer>5 classic problems, plus a blank chain for your own question</footer>
 </div>
@@ -559,6 +604,18 @@
   let currentProblem = null;
   let currentFactors = [];
   let customCounter = 0;
+  let revealed = false;
+
+  // Classroom pacing: the breakdown (sliders, ledger, computed estimate) stays
+  // hidden until the instructor explicitly reveals it, so the question can be
+  // posed to a class on its own first.
+  function setRevealed(val) {
+    revealed = val;
+    breakdownWrap.style.display = val ? 'flex' : 'none';
+    resetBtn.style.display = val ? '' : 'none';
+    revealBtn.textContent = val ? '▲ Hide the breakdown' : '▶ Reveal the breakdown';
+    revealBtn.setAttribute('aria-expanded', val ? 'true' : 'false');
+  }
 
   const problemChipsHost = document.getElementById('problemChips');
   const questionText = document.getElementById('questionText');
@@ -573,7 +630,12 @@
   const answerValue = document.getElementById('answerValue');
   const answerOrder = document.getElementById('answerOrder');
   const answerReference = document.getElementById('answerReference');
+  const answerActualCompare = document.getElementById('answerActualCompare');
   const liveRegion = document.getElementById('liveRegion');
+  const actualInput = document.getElementById('actualInput');
+  const actualUnit = document.getElementById('actualUnit');
+  const revealBtn = document.getElementById('revealBtn');
+  const breakdownWrap = document.getElementById('breakdownWrap');
 
   const chipEls = PROBLEMS.map(function (p) {
     const chip = document.createElement('button');
@@ -620,6 +682,10 @@
       mapImage.removeAttribute('src');
       mapPanel.style.display = 'none';
     }
+
+    actualInput.value = '';
+    actualUnit.textContent = currentProblem.resultUnit || '';
+    setRevealed(false);
 
     renderStack();
   }
@@ -824,15 +890,36 @@
     answerValue.textContent = formatNumber(evald.result) + (resultUnit ? ' ' + resultUnit : '');
     answerOrder.textContent = orderOfMagnitude(evald.result);
     answerReference.textContent = currentProblem.reference;
+    updateActualCompare(evald.result, resultUnit);
     liveRegion.textContent = 'Estimate: ' + formatNumber(evald.result) + ' ' + resultUnit + '. ' + orderOfMagnitude(evald.result);
+  }
+
+  function updateActualCompare(estimate, resultUnit) {
+    const raw = actualInput.value.trim();
+    const actual = parseFloat(raw.replace(/,/g, ''));
+    if (!raw || isNaN(actual) || actual <= 0) {
+      answerActualCompare.textContent = '';
+      return;
+    }
+    const bigger = estimate > actual;
+    const ratio = bigger ? estimate / actual : actual / estimate;
+    const ratioStr = formatNumber(ratio);
+    answerActualCompare.innerHTML = 'Actual: <strong>' + formatNumber(actual) + (resultUnit ? ' ' + resultUnit : '') +
+      '</strong> &mdash; your estimate is ' + ratioStr + '&times; ' + (bigger ? 'higher' : 'lower') + '.';
   }
 
   addFactorBtn.addEventListener('click', function () {
     addFactor('New factor', 10, '', 'mul');
   });
   resetBtn.addEventListener('click', function () {
-    loadProblem(currentProblem.id);
+    // Reset only the slider values back to defaults -- deliberately doesn't touch
+    // the reveal state or the actual-answer field, since an instructor mid-demo
+    // wants to re-run the sliders, not re-hide the breakdown they just showed.
+    currentFactors = cloneFactors(currentProblem.factors);
+    renderStack();
   });
+  revealBtn.addEventListener('click', function () { setRevealed(!revealed); });
+  actualInput.addEventListener('input', compute);
 
   loadProblem('donuts');
 })();
