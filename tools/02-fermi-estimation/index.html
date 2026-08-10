@@ -394,8 +394,8 @@
     </div>
     <div class="map-caption" id="mapCaption"></div>
     <div class="map-legend" id="mapLegend" style="display:none;">
-      <span><i class="swatch swatch-shop" aria-hidden="true"></i> donut shop (estimate)</span>
-      <span><i class="swatch swatch-people" aria-hidden="true"></i> ~500 people</span>
+      <span id="legendShop"><i class="swatch swatch-shop" aria-hidden="true"></i> <span id="legendShopLabel">donut shop</span></span>
+      <span id="legendPeople" style="display:none;"><i class="swatch swatch-people" aria-hidden="true"></i> ~500 people</span>
     </div>
   </section>
 
@@ -405,7 +405,7 @@
   </section>
 
   <section class="actual-row" aria-label="Actual answer">
-    <label for="actualInput">Actual answer <span class="actual-optional">(optional &mdash; for comparison once revealed)</span></label>
+    <label for="actualInput">Actual answer <span class="actual-optional">(optional &mdash; pins the map now, compared to your estimate once revealed)</span></label>
     <div class="actual-control">
       <input type="text" id="actualInput" class="actual-input mono" placeholder="e.g. 12" inputmode="decimal" autocomplete="off" />
       <span class="actual-unit" id="actualUnit"></span>
@@ -557,19 +557,32 @@
   });
 
   function updatePins(estimate) {
-    if (!revealed) {
-      peoplePinEls.forEach(function (el) { el.classList.remove('active'); });
-      shopPinEls.forEach(function (el) { el.classList.remove('active'); });
-      mapLegend.style.display = 'none';
-      return;
+    let shopCount = 0;
+    let peopleCount = 0;
+
+    if (revealed) {
+      // Post-reveal: pins reflect the live Fermi chain -- the actual factor math,
+      // sliders and all.
+      const popFactor = currentFactors.filter(function (f) { return f.id === 'pop'; })[0];
+      const population = popFactor ? popFactor.value : 0;
+      peopleCount = Math.min(MAX_PEOPLE_PINS, Math.max(0, Math.round(population / PEOPLE_PER_PIN)));
+      shopCount = Math.min(MAX_SHOP_PINS, Math.max(0, Math.round(estimate)));
+    } else {
+      // Pre-reveal: pins reflect whatever's typed in the "actual answer" box, so an
+      // instructor can pin the map while talking a guess through with the class --
+      // before the factor breakdown (and the population figure it needs) exists on
+      // screen at all, hence no people pins yet.
+      const raw = actualInput.value.trim();
+      const typed = parseFloat(raw.replace(/,/g, ''));
+      shopCount = (raw && !isNaN(typed) && typed > 0) ? Math.min(MAX_SHOP_PINS, Math.round(typed)) : 0;
     }
-    const popFactor = currentFactors.filter(function (f) { return f.id === 'pop'; })[0];
-    const population = popFactor ? popFactor.value : 0;
-    const peopleCount = Math.min(MAX_PEOPLE_PINS, Math.max(0, Math.round(population / PEOPLE_PER_PIN)));
-    const shopCount = Math.min(MAX_SHOP_PINS, Math.max(0, Math.round(estimate)));
+
     peoplePinEls.forEach(function (el, i) { el.classList.toggle('active', i < peopleCount); });
     shopPinEls.forEach(function (el, i) { el.classList.toggle('active', i < shopCount); });
-    mapLegend.style.display = 'flex';
+
+    legendShopLabel.textContent = revealed ? 'donut shop (estimate)' : 'donut shop (your guess)';
+    legendPeople.style.display = peopleCount > 0 ? 'inline-flex' : 'none';
+    mapLegend.style.display = (shopCount > 0 || peopleCount > 0) ? 'flex' : 'none';
   }
 
   // ============ STATE ============
@@ -597,6 +610,8 @@
   const mapImage = document.getElementById('mapImage');
   const mapCaption = document.getElementById('mapCaption');
   const mapLegend = document.getElementById('mapLegend');
+  const legendShopLabel = document.getElementById('legendShopLabel');
+  const legendPeople = document.getElementById('legendPeople');
   const factorStackHost = document.getElementById('factorStack');
   const resetBtn = document.getElementById('resetBtn');
   const ledgerList = document.getElementById('ledgerList');
