@@ -4,7 +4,9 @@ Interactive tools for a calculus-based intro physics course (Physics I/II), buil
 class. Each tool is a single self-contained HTML file — no build step, no dependencies. Open it
 directly in a browser, or serve the repo with GitHub Pages.
 
-Tools are numbered in the order they show up in the course.
+[`index.html`](index.html) at the repo root is a landing page listing every tool — that's the page
+GitHub Pages should serve as the site root. Tools are numbered in the order they show up in the
+course.
 
 ## Tools
 
@@ -17,3 +19,13 @@ Tools are numbered in the order they show up in the course.
 
 Each tool is a standalone `index.html` — just open the file in a browser. No server or install
 required.
+
+## Publishing to GitHub Pages
+
+1. Push `main` to GitHub.
+2. In the repo, go to **Settings → Pages**.
+3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
+4. Branch: **main**, folder: **/ (root)** → **Save**.
+
+GitHub will serve `index.html` (the landing page) at the repo's Pages URL, and each tool at
+`/tools/<number>-<name>/`.
