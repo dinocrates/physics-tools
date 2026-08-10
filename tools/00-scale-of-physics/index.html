@@ -503,8 +503,17 @@
       const delta = i - currentPos;
       const abs = Math.abs(delta);
       const SPACING = 168; // px between adjacent card centers
-      const scale = Math.max(0.22, 1 - abs * 0.38);
-      const opacity = Math.max(0, 1 - abs * 0.62);
+      // Asymmetric falloff to sell "zooming out through scale": stops you've already
+      // passed (delta < 0, smaller/left) shrink away quickly; the stop coming up next
+      // (delta > 0, ~10x bigger/right) stays large much longer before it takes over.
+      let scale, opacity;
+      if (delta <= 0) {
+        scale = Math.max(0.15, 1 + delta * 0.6);
+        opacity = Math.max(0, 1 + delta * 0.9);
+      } else {
+        scale = Math.max(0.3, 1 - delta * 0.15);
+        opacity = Math.max(0, 1 - delta * 0.35);
+      }
       card.style.transform = 'translateX(' + (delta * SPACING).toFixed(1) + 'px) scale(' + scale.toFixed(3) + ')';
       card.style.opacity = opacity.toFixed(3);
       card.style.zIndex = String(200 - Math.round(abs * 10));
@@ -566,6 +575,17 @@
     if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
   });
+
+  // Scroll to travel: wheel-up zooms out to bigger scales (right), wheel-down zooms
+  // back in to smaller ones (left) -- scoped to the viewport panel so scrolling the
+  // rest of the page still behaves normally.
+  const viewportPanel = document.querySelector('.viewport-panel');
+  const WHEEL_SENSITIVITY = 0.0022;
+  viewportPanel.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
+    setPosition(currentPos - e.deltaY * WHEEL_SENSITIVITY);
+  }, { passive: false });
 
   setPosition(currentPos);
   window.addEventListener('resize', render);
