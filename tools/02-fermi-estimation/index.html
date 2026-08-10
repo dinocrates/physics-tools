@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fermi Estimation Lab</title>
+<meta name="description" content="Break a hard estimation question into a chain of easier guesses and watch the answer update live — five classic Fermi problems plus a blank chain for your own question." />
+<style>
+  :root {
+    --bg: #0B0A18;
+    --surface: #17132B;
+    --surface-2: #1F1A3B;
+    --ink: #F4EFE6;
+    --ink-soft: #B7ADD9;
+    --ink-faint: #7B6FA6;
+    --line: #2A2350;
+    --line-bright: #5B4A96;
+    --accent: #FF4D7E;
+    --cyan: #33F1E6;
+    --gold: #FFD84D;
+    --danger: #FF6B4A;
+    --shadow-color: #000000;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    padding: 2.25rem 1.25rem 4rem;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.14) 0px,
+      rgba(0, 0, 0, 0.14) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.85rem;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  /* ---------- 8-bit panel utility ---------- */
+  .panel-8bit { position: relative; z-index: 0; }
+  .panel-8bit::before, .panel-8bit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+  }
+  .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
+  .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 3px solid var(--line-bright);
+    padding-bottom: 1.4rem;
+  }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+  .eyebrow::before { content: '// '; opacity: 0.7; }
+  header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
+  header.masthead p {
+    margin: 0.3rem 0 0; color: var(--ink-soft); max-width: 66ch; font-size: 0.92rem;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
+
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- problem switcher ---------- */
+  .problem-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .chip {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip:active { transform: translate(3px, 3px); box-shadow: none; }
+  .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
+
+  /* ---------- question + reset ---------- */
+  .question-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .question-text { font-size: 1.15rem; color: var(--ink); font-weight: 700; max-width: 56ch; line-height: 1.5; }
+  .question-input {
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    font-weight: 700;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--cyan);
+    width: 100%;
+  }
+  .btn-ghost {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: 3px solid var(--bg);
+    border-radius: 0;
+    padding: 0.6rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: 4px 4px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-primary:hover { filter: brightness(1.12); }
+  .btn-primary:active { transform: translate(4px, 4px); box-shadow: none; }
+
+  /* ---------- factor stack ---------- */
+  .stack-panel { padding: 1.3rem 1.4rem 1.5rem; }
+  .factor-stack { display: flex; flex-direction: column; gap: 0.9rem; }
+
+  .factor-row {
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px dashed var(--line-bright);
+  }
+  .factor-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .factor-op {
+    flex: none;
+    width: 1.8rem;
+    height: 1.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    margin-top: 0.1rem;
+  }
+  .factor-row.is-fact .factor-op { color: var(--ink-faint); }
+
+  .factor-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+  .factor-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+  .factor-label { font-size: 0.88rem; color: var(--ink); font-weight: 700; }
+  .factor-row.is-fact .factor-label { color: var(--ink-soft); font-weight: 400; }
+  .factor-tag {
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+    padding: 0.1rem 0.4rem; border: 1px solid var(--line-bright); color: var(--ink-faint); flex: none;
+  }
+  .factor-row.is-fact .factor-tag { color: var(--cyan); border-color: var(--cyan); }
+
+  .factor-control { display: flex; align-items: center; gap: 0.6rem; }
+  input[type="range"].factor-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 0.4rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    cursor: pointer;
+  }
+  input[type="range"].factor-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.9rem;
+    height: 1.3rem;
+    background: var(--cyan);
+    border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color);
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"].factor-slider::-moz-range-thumb {
+    width: 0.9rem; height: 1.3rem; background: var(--cyan); border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color); cursor: pointer; border-radius: 0;
+  }
+  .factor-value-wrap { flex: none; display: flex; align-items: center; gap: 0.3rem; }
+  input.factor-value-input {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.3rem 0.45rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--gold);
+    width: 6.5rem;
+    text-align: right;
+  }
+  .factor-row.is-fact input.factor-value-input { color: var(--ink-soft); }
+  .factor-unit { font-size: 0.76rem; color: var(--ink-faint); white-space: nowrap; }
+  .factor-rationale { font-size: 0.78rem; color: var(--ink-faint); line-height: 1.5; }
+
+  .factor-remove {
+    flex: none;
+    width: 1.6rem; height: 1.6rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--danger);
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .factor-remove:hover { border-color: var(--danger); }
+
+  /* custom-mode text inputs */
+  input.factor-text-input {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--ink);
+  }
+  select.factor-op-select {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.3rem 0.3rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--surface-2);
+    color: var(--accent);
+  }
+
+  /* ---------- ledger ---------- */
+  .ledger { padding: 1rem 1.2rem; }
+  .ledger h3 { font-size: 0.7rem; color: var(--cyan); margin-bottom: 0.6rem; }
+  .ledger ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+  .ledger li {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    display: flex;
+    gap: 0.5rem;
+  }
+  .ledger li::before { content: '>'; color: var(--line-bright); font-weight: 700; }
+  .ledger li .mult { color: var(--gold); font-weight: 700; min-width: 1.6rem; }
+  .ledger li.final-line { color: var(--ink); font-weight: 700; border-top: 2px dashed var(--line-bright); padding-top: 0.5rem; margin-top: 0.15rem; }
+  .ledger li.final-line::before { color: var(--gold); }
+
+  /* ---------- final answer ---------- */
+  .answer-panel { padding: 1.3rem 1.5rem; text-align: center; }
+  .answer-panel::before {
+    content: 'Estimate';
+    display: block;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--gold);
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  .answer-value { font-size: 2.1rem; font-weight: 700; color: var(--gold); text-shadow: 3px 3px 0 var(--shadow-color); }
+  .answer-order { font-size: 0.9rem; color: var(--cyan); margin-top: 0.4rem; }
+  .answer-reference { font-size: 0.84rem; color: var(--ink-soft); margin-top: 0.9rem; line-height: 1.55; max-width: 60ch; margin-left: auto; margin-right: auto; }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    padding-top: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+  footer::after { content: '_'; color: var(--cyan); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    footer::after { animation: none; opacity: 1; }
+    .chip, .btn-ghost, .btn-primary { transition: none; }
+  }
+
+  @media (max-width: 600px) {
+    header.masthead h1 { font-size: 1.6rem; }
+    .factor-control { flex-wrap: wrap; }
+    input[type="range"].factor-slider { width: 100%; flex: 1 1 100%; }
+    .answer-value { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow">Unit 1 &middot; Measurement &amp; Estimation</div>
+    <h1>Fermi Estimation Lab</h1>
+    <p>Break a hard question into a chain of easier guesses, multiply them together, and you'll usually land within a factor of ten of the real answer. Drag any assumption below and watch the estimate update live &mdash; that's the whole method.</p>
+  </header>
+
+  <div class="problem-chips" id="problemChips"></div>
+
+  <section class="question-row">
+    <div class="question-text" id="questionText"></div>
+    <button class="btn-ghost" id="resetBtn" type="button">&#8635; Reset guesses</button>
+  </section>
+
+  <section class="stack-panel panel-8bit" aria-label="Estimation chain">
+    <div class="factor-stack" id="factorStack"></div>
+    <div id="customControls" style="display:none; margin-top: 1rem;">
+      <button class="btn-primary" id="addFactorBtn" type="button">+ Add a factor</button>
+    </div>
+  </section>
+
+  <section class="ledger panel-8bit" aria-label="Running arithmetic">
+    <h3>Running the numbers</h3>
+    <ol id="ledgerList"></ol>
+  </section>
+
+  <section class="answer-panel panel-8bit" aria-label="Final estimate">
+    <div class="answer-value mono" id="answerValue">&mdash;</div>
+    <div class="answer-order mono" id="answerOrder"></div>
+    <p class="answer-reference" id="answerReference"></p>
+    <span class="sr-only" id="liveRegion" aria-live="polite"></span>
+  </section>
+
+  <footer>5 classic problems, plus a blank chain for your own question</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ DATA ============
+  // kind: 'estimate' (editable slider) | 'fact' (fixed, shown but not adjustable)
+  // isLog: true for quantities that span orders of magnitude (log-scale slider)
+  const PROBLEMS = [
+    {
+      id: 'donuts',
+      chip: 'Donut shops',
+      question: "How many donut shops does a city of about 2.7 million people need?",
+      resultUnit: 'donut shops',
+      reference: "Real cities this size typically support a few hundred to a couple thousand donut and bakery shops — if your estimate lands anywhere in that neighborhood, the method worked.",
+      factors: [
+        { id: 'pop', label: 'People in the city', unit: 'people', kind: 'estimate', op: 'mul', value: 2700000, min: 100000, max: 10000000, isLog: true, rationale: 'Start from a city you can picture — this is roughly Chicago-sized.' },
+        { id: 'frac', label: 'Fraction who eat donuts regularly', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.35, min: 0.02, max: 1, isLog: false, rationale: "Doesn't need to be exact — just plausible." },
+        { id: 'rate', label: 'Donuts per person per week', unit: 'donuts/person/wk', kind: 'estimate', op: 'mul', value: 3, min: 0.5, max: 10, isLog: false, rationale: 'A donut every couple of days for a regular eater.' },
+        { id: 'cap', label: 'Donuts a shop sells per week', unit: 'donuts/wk/shop', kind: 'estimate', op: 'div', value: 3000, min: 300, max: 20000, isLog: true, rationale: 'Roughly a few hundred donuts a day, most days.' },
+      ],
+    },
+    {
+      id: 'piano',
+      chip: 'Piano tuners',
+      question: "The original Fermi question: how many piano tuners work in a city of about 2.7 million people?",
+      resultUnit: 'piano tuners',
+      reference: "First posed by Enrico Fermi to his students. It's famous because a chain of rough guesses like this one reliably lands within a factor of 2–3 of real phone-directory counts — usually a few dozen tuners, not a few hundred or a handful.",
+      factors: [
+        { id: 'pop', label: 'People in the city', unit: 'people', kind: 'estimate', op: 'mul', value: 2700000, min: 100000, max: 10000000, isLog: true, rationale: 'Same city-sizing assumption as before.' },
+        { id: 'hh', label: 'People per household', unit: 'people/household', kind: 'estimate', op: 'div', value: 2.5, min: 1, max: 5, isLog: false, rationale: 'Converts people into households.' },
+        { id: 'pianofrac', label: 'Fraction of households with a piano', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.02, min: 0.002, max: 0.2, isLog: true, rationale: 'Pianos are uncommon but not rare — maybe 1 in 50 homes.' },
+        { id: 'tuneyr', label: 'Tunings per piano per year', unit: 'tunings/piano/yr', kind: 'estimate', op: 'mul', value: 1, min: 0.5, max: 3, isLog: false, rationale: 'A well-kept piano gets tuned about once a year.' },
+        { id: 'tunercap', label: 'Tunings one tuner does per year', unit: 'tunings/yr/tuner', kind: 'estimate', op: 'div', value: 1000, min: 200, max: 3000, isLog: true, rationale: 'A few tunings a day, most working days of the year.' },
+      ],
+    },
+    {
+      id: 'golfballs',
+      chip: 'Golf balls in a bus',
+      question: "How many golf balls would it take to completely fill a standard school bus?",
+      resultUnit: 'golf balls',
+      reference: "This flavor of problem — packing objects into a volume — shows up constantly in interview-style estimation practice. The packing-efficiency step is the one people most often forget entirely.",
+      factors: [
+        { id: 'busvol', label: 'Interior volume of the bus', unit: 'liters', kind: 'estimate', op: 'mul', value: 50000, min: 10000, max: 150000, isLog: true, rationale: 'About 10m × 2.5m × 2m of interior space.' },
+        { id: 'pack', label: 'Packing efficiency (gaps between balls)', unit: 'fraction', kind: 'estimate', op: 'mul', value: 0.6, min: 0.3, max: 0.75, isLog: false, rationale: "Spheres never pack perfectly — there's always wasted space between them." },
+        { id: 'ballvol', label: 'Volume of one golf ball', unit: 'liters', kind: 'estimate', op: 'div', value: 0.0416, min: 0.02, max: 0.08, isLog: true, rationale: 'A golf ball is about 4.3 cm across.' },
+      ],
+    },
+    {
+      id: 'grass',
+      chip: 'Blades of grass',
+      question: "About how many blades of grass are on a football field?",
+      resultUnit: 'blades of grass',
+      reference: "Agricultural turf estimates put dense lawn density on the order of 10⁴–10⁵ blades per square meter — right in the range this chain uses.",
+      factors: [
+        { id: 'area', label: 'Field area (incl. end zones)', unit: 'm²', kind: 'estimate', op: 'mul', value: 5400, min: 1000, max: 20000, isLog: true, rationale: 'A regulation field is roughly 49m × 110m.' },
+        { id: 'density', label: 'Blades of grass per square meter', unit: 'blades/m²', kind: 'estimate', op: 'mul', value: 50000, min: 5000, max: 200000, isLog: true, rationale: 'Dense turf is thicker than it looks up close.' },
+      ],
+    },
+    {
+      id: 'heartbeats',
+      chip: 'Lifetime heartbeats',
+      question: "About how many times does a human heart beat in an 80-year lifetime?",
+      resultUnit: 'heartbeats',
+      reference: "Commonly quoted as landing around 2.5–3 billion beats — a nice example of chaining exact unit-conversion facts (the middle three rows) with just two real guesses.",
+      factors: [
+        { id: 'rate', label: 'Resting heart rate', unit: 'beats/min', kind: 'estimate', op: 'mul', value: 70, min: 40, max: 120, isLog: false, rationale: 'A relaxed adult resting heart rate.' },
+        { id: 'mph', label: 'Minutes per hour', unit: 'min/hr', kind: 'fact', op: 'mul', value: 60 },
+        { id: 'hpd', label: 'Hours per day', unit: 'hr/day', kind: 'fact', op: 'mul', value: 24 },
+        { id: 'dpy', label: 'Days per year', unit: 'day/yr', kind: 'fact', op: 'mul', value: 365 },
+        { id: 'life', label: 'Years in a lifetime', unit: 'years', kind: 'estimate', op: 'mul', value: 80, min: 60, max: 100, isLog: false, rationale: 'A rough life expectancy.' },
+      ],
+    },
+    {
+      id: 'custom',
+      chip: 'Custom',
+      question: "What do you want to estimate?",
+      reference: "",
+      factors: [],
+      isCustom: true,
+    },
+  ];
+
+  // ============ FORMATTING ============
+  const SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+  function toSuperscript(n) { return String(n).split('').map(function (c) { return SUP[c] !== undefined ? SUP[c] : c; }).join(''); }
+
+  function formatNumber(n) {
+    if (!isFinite(n)) return String(n);
+    const abs = Math.abs(n);
+    if (abs === 0) return '0';
+    if (abs >= 1000) {
+      const rounded = Math.round(n);
+      const parts = String(rounded).split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return parts.join('.');
+    }
+    if (abs >= 1) {
+      const decimals = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+      let s = n.toFixed(decimals);
+      // only trim trailing zeros that are actually part of a decimal fraction --
+      // toFixed(0) on a value like 100 has no "." at all, and a naive /\.?0+$/
+      // (optional dot) would wrongly eat the integer's own trailing zeros (100 -> 1)
+      if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+      return s;
+    }
+    // small fractions
+    let s = n.toPrecision(2);
+    if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s;
+  }
+
+  function orderOfMagnitude(n) {
+    if (n <= 0 || !isFinite(n)) return '';
+    const exp = Math.floor(Math.log10(n));
+    return '≈ 10' + toSuperscript(exp) + ' (order of magnitude)';
+  }
+
+  // ============ LOG-SLIDER MATH ============
+  function logSliderToValue(min, max, frac) { return min * Math.pow(max / min, frac); }
+  function valueToLogSliderFrac(min, max, value) { return Math.log(value / min) / Math.log(max / min); }
+  const SLIDER_STEPS = 1000;
+
+  // ============ CHAIN EVALUATION ============
+  function evalChain(factors) {
+    let product = 1;
+    const steps = [];
+    for (const f of factors) {
+      const v = Number(f.value) || 0;
+      product = f.op === 'div' ? product / (v || 1) : product * v;
+      steps.push(Object.assign({}, f, { runningAfter: product }));
+    }
+    return { result: product, steps: steps };
+  }
+
+  // ============ STATE ============
+  let currentProblem = null;
+  let currentFactors = [];
+  let customCounter = 0;
+
+  const problemChipsHost = document.getElementById('problemChips');
+  const questionText = document.getElementById('questionText');
+  const factorStackHost = document.getElementById('factorStack');
+  const customControls = document.getElementById('customControls');
+  const addFactorBtn = document.getElementById('addFactorBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const ledgerList = document.getElementById('ledgerList');
+  const answerValue = document.getElementById('answerValue');
+  const answerOrder = document.getElementById('answerOrder');
+  const answerReference = document.getElementById('answerReference');
+  const liveRegion = document.getElementById('liveRegion');
+
+  const chipEls = PROBLEMS.map(function (p) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = p.chip;
+    chip.addEventListener('click', function () { loadProblem(p.id); });
+    problemChipsHost.appendChild(chip);
+    return chip;
+  });
+
+  function cloneFactors(factors) {
+    return factors.map(function (f) { return Object.assign({}, f); });
+  }
+
+  function loadProblem(id) {
+    currentProblem = PROBLEMS.filter(function (p) { return p.id === id; })[0];
+    currentFactors = cloneFactors(currentProblem.factors);
+    chipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', PROBLEMS[i].id === id); });
+
+    if (currentProblem.isCustom) {
+      questionText.innerHTML = '';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'question-input mono';
+      input.placeholder = 'e.g. How many pizzas are eaten in this city on a Friday night?';
+      questionText.appendChild(input);
+      customControls.style.display = 'block';
+      if (currentFactors.length === 0) {
+        addFactor('e.g. Something you can guess', 10, '', 'mul');
+        addFactor('e.g. Another factor', 10, '', 'mul');
+      }
+    } else {
+      questionText.textContent = currentProblem.question;
+      customControls.style.display = 'none';
+    }
+    renderStack();
+  }
+
+  function addFactor(label, value, unit, op) {
+    customCounter += 1;
+    currentFactors.push({
+      id: 'custom' + customCounter, label: label, unit: unit, kind: 'custom', op: op, value: value,
+    });
+    renderStack();
+  }
+
+  function removeFactor(id) {
+    currentFactors = currentFactors.filter(function (f) { return f.id !== id; });
+    renderStack();
+  }
+
+  function renderStack() {
+    factorStackHost.innerHTML = '';
+    currentFactors.forEach(function (f) {
+      factorStackHost.appendChild(buildFactorRow(f));
+    });
+    compute();
+  }
+
+  function buildFactorRow(f) {
+    const row = document.createElement('div');
+    row.className = 'factor-row' + (f.kind === 'fact' ? ' is-fact' : '');
+
+    const opEl = document.createElement('div');
+    opEl.className = 'factor-op';
+    opEl.textContent = f.op === 'div' ? '÷' : '×';
+    row.appendChild(opEl);
+
+    const main = document.createElement('div');
+    main.className = 'factor-main';
+
+    const labelRow = document.createElement('div');
+    labelRow.className = 'factor-label-row';
+
+    if (f.kind === 'custom') {
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'factor-text-input mono';
+      labelInput.value = f.label;
+      labelInput.style.flex = '1';
+      labelInput.addEventListener('input', function () { f.label = labelInput.value; });
+      labelRow.appendChild(labelInput);
+
+      const opSelect = document.createElement('select');
+      opSelect.className = 'factor-op-select';
+      ['mul', 'div'].forEach(function (opt) {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt === 'mul' ? '×' : '÷';
+        if (f.op === opt) o.selected = true;
+        opSelect.appendChild(o);
+      });
+      opSelect.addEventListener('change', function () {
+        f.op = opSelect.value;
+        opEl.textContent = f.op === 'div' ? '÷' : '×';
+        compute();
+      });
+      labelRow.appendChild(opSelect);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'factor-remove';
+      removeBtn.textContent = '✕';
+      removeBtn.setAttribute('aria-label', 'Remove this factor');
+      removeBtn.addEventListener('click', function () { removeFactor(f.id); });
+      labelRow.appendChild(removeBtn);
+    } else {
+      const labelEl = document.createElement('span');
+      labelEl.className = 'factor-label';
+      labelEl.textContent = f.label;
+      labelRow.appendChild(labelEl);
+
+      const tag = document.createElement('span');
+      tag.className = 'factor-tag';
+      tag.textContent = f.kind === 'fact' ? 'fact' : 'estimate';
+      labelRow.appendChild(tag);
+    }
+    main.appendChild(labelRow);
+
+    const control = document.createElement('div');
+    control.className = 'factor-control';
+
+    if (f.kind === 'estimate') {
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.className = 'factor-slider';
+      slider.min = '0';
+      slider.max = String(SLIDER_STEPS);
+      slider.step = '1';
+      slider.value = String(Math.round((f.isLog ? valueToLogSliderFrac(f.min, f.max, f.value) : (f.value - f.min) / (f.max - f.min)) * SLIDER_STEPS));
+      slider.setAttribute('aria-label', f.label);
+
+      const valueInput = document.createElement('input');
+      valueInput.type = 'text';
+      valueInput.className = 'factor-value-input mono';
+      valueInput.value = formatNumber(f.value);
+
+      slider.addEventListener('input', function () {
+        const frac = Number(slider.value) / SLIDER_STEPS;
+        f.value = f.isLog ? logSliderToValue(f.min, f.max, frac) : f.min + frac * (f.max - f.min);
+        valueInput.value = formatNumber(f.value);
+        compute();
+      });
+      valueInput.addEventListener('change', function () {
+        const parsed = parseFloat(valueInput.value.replace(/,/g, ''));
+        if (!isNaN(parsed) && parsed > 0) {
+          f.value = Math.min(f.max, Math.max(f.min, parsed));
+          const frac = f.isLog ? valueToLogSliderFrac(f.min, f.max, f.value) : (f.value - f.min) / (f.max - f.min);
+          slider.value = String(Math.round(frac * SLIDER_STEPS));
+        }
+        valueInput.value = formatNumber(f.value);
+        compute();
+      });
+
+      control.appendChild(slider);
+      const valWrap = document.createElement('div');
+      valWrap.className = 'factor-value-wrap';
+      valWrap.appendChild(valueInput);
+      const unitEl = document.createElement('span');
+      unitEl.className = 'factor-unit';
+      unitEl.textContent = f.unit;
+      valWrap.appendChild(unitEl);
+      control.appendChild(valWrap);
+    } else if (f.kind === 'fact') {
+      const valWrap = document.createElement('div');
+      valWrap.className = 'factor-value-wrap';
+      const valueSpan = document.createElement('input');
+      valueSpan.type = 'text';
+      valueSpan.className = 'factor-value-input mono';
+      valueSpan.value = formatNumber(f.value);
+      valueSpan.disabled = true;
+      valWrap.appendChild(valueSpan);
+      const unitEl = document.createElement('span');
+      unitEl.className = 'factor-unit';
+      unitEl.textContent = f.unit;
+      valWrap.appendChild(unitEl);
+      control.appendChild(valWrap);
+    } else {
+      // custom: editable number + unit text
+      const valueInput = document.createElement('input');
+      valueInput.type = 'text';
+      valueInput.className = 'factor-value-input mono';
+      valueInput.value = formatNumber(f.value);
+      valueInput.addEventListener('change', function () {
+        const parsed = parseFloat(valueInput.value.replace(/,/g, ''));
+        f.value = isNaN(parsed) ? 0 : parsed;
+        valueInput.value = formatNumber(f.value);
+        compute();
+      });
+      control.appendChild(valueInput);
+
+      const unitInput = document.createElement('input');
+      unitInput.type = 'text';
+      unitInput.className = 'factor-text-input mono';
+      unitInput.style.width = '7rem';
+      unitInput.placeholder = 'unit';
+      unitInput.value = f.unit || '';
+      unitInput.addEventListener('input', function () { f.unit = unitInput.value; });
+      control.appendChild(unitInput);
+    }
+    main.appendChild(control);
+
+    if (f.rationale) {
+      const rationale = document.createElement('div');
+      rationale.className = 'factor-rationale';
+      rationale.textContent = f.rationale;
+      main.appendChild(rationale);
+    }
+
+    row.appendChild(main);
+    return row;
+  }
+
+  function compute() {
+    const evald = evalChain(currentFactors);
+    ledgerList.innerHTML = '';
+    // Note: the running total's unit isn't tracked here (unlike the Dimensional
+    // Analysis Lab's rigorous engine) -- this tool is about order-of-magnitude
+    // reasoning, not unit cancellation. Each line shows what was just multiplied
+    // in (with its own unit) and the plain running number; the running number
+    // never gets a unit slapped on it, since that unit generally isn't "people"
+    // or "fraction" or whatever the last factor happened to be.
+    evald.steps.forEach(function (s) {
+      const li = document.createElement('li');
+      const opSym = s.op === 'div' ? '÷' : '×';
+      li.innerHTML = '<span class="mult">' + opSym + formatNumber(s.value) + (s.unit ? ' ' + s.unit : '') + '</span>' +
+        '<span>→ ' + formatNumber(s.runningAfter) + '</span>';
+      ledgerList.appendChild(li);
+    });
+    const resultUnit = currentProblem.resultUnit || '';
+    const finalLi = document.createElement('li');
+    finalLi.className = 'final-line';
+    finalLi.innerHTML = '<span class="mult">=</span><span>' + formatNumber(evald.result) + (resultUnit ? ' ' + resultUnit : '') + '</span>';
+    ledgerList.appendChild(finalLi);
+
+    answerValue.textContent = formatNumber(evald.result) + (resultUnit ? ' ' + resultUnit : '');
+    answerOrder.textContent = orderOfMagnitude(evald.result);
+    answerReference.textContent = currentProblem.reference;
+    liveRegion.textContent = 'Estimate: ' + formatNumber(evald.result) + ' ' + resultUnit + '. ' + orderOfMagnitude(evald.result);
+  }
+
+  addFactorBtn.addEventListener('click', function () {
+    addFactor('New factor', 10, '', 'mul');
+  });
+  resetBtn.addEventListener('click', function () {
+    loadProblem(currentProblem.id);
+  });
+
+  loadProblem('donuts');
+})();
+</script>
+</body>
+</html>
