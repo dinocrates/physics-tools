@@ -154,6 +154,7 @@
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
   .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
+  .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: rgba(255, 77, 126, 0.12); }
 
   .scene-wrap {
     position: relative;
@@ -209,6 +210,7 @@
     width: 0.9rem; height: 1.3rem; background: var(--thumb-color, var(--cyan)); border: 2px solid var(--bg);
     box-shadow: 1px 1px 0 var(--shadow-color); cursor: pointer; border-radius: 0;
   }
+  .comp-slider:disabled, input.comp-value:disabled { opacity: 0.4; cursor: not-allowed; }
   input.comp-value {
     font-family: var(--font-mono);
     font-size: 0.82rem;
@@ -287,6 +289,7 @@
     <div class="viewport-toolbar">
       <div class="viewport-hint">Drag to rotate &middot; scroll to zoom</div>
       <div class="viewport-actions">
+        <button class="btn-ghost" id="sweepBtn" type="button" title="Swing A through every angle from 0&deg; to 180&deg; and back, and watch the shadow track it" aria-pressed="false">&#9654; Animate angle</button>
         <button class="btn-ghost" id="flattenBtn" type="button" title="Rotate to view the plane A and B span, face-on, with the light overhead">&#9737; Overhead view</button>
         <button class="btn-ghost" id="resetViewBtn" type="button">&#8635; Reset view</button>
       </div>
@@ -435,6 +438,7 @@
   const modeChipsHost = document.getElementById('modeChips');
   const resetViewBtn = document.getElementById('resetViewBtn');
   const flattenBtn = document.getElementById('flattenBtn');
+  const sweepBtn = document.getElementById('sweepBtn');
   const magA = document.getElementById('magA');
   const magB = document.getElementById('magB');
   const roMagA = document.getElementById('roMagA');
@@ -456,17 +460,25 @@
     chip.type = 'button';
     chip.className = 'chip';
     chip.textContent = m.label;
-    chip.addEventListener('click', function () { mode = m.id; updateModeChips(); updateToolbarForMode(); render(); });
+    chip.addEventListener('click', function () {
+      mode = m.id;
+      if (mode !== 'dot' && sweepActive) stopSweep();
+      updateModeChips(); updateToolbarForMode(); render();
+    });
     modeChipsHost.appendChild(chip);
     return chip;
   });
   function updateModeChips() {
     modeChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', MODES[i].id === mode); });
   }
-  // the overhead-view button only makes sense in dot mode -- cross mode has no
-  // light/shadow to flatten toward
+  // the overhead-view and animate-angle buttons only make sense in dot mode --
+  // cross mode has no light/shadow to flatten toward or sweep through. The
+  // sweep also needs the continuous render loop, which never runs under
+  // prefers-reduced-motion, so it's hidden there too rather than offering a
+  // control that can't actually play.
   function updateToolbarForMode() {
     flattenBtn.style.display = mode === 'dot' ? '' : 'none';
+    sweepBtn.style.display = (mode === 'dot' && !reduceMotion) ? '' : 'none';
   }
 
   // ---- vector component sliders ----
@@ -598,7 +610,10 @@
   // which roll puts the light above versus below. Try both normals, and for
   // each, both ways of laying B horizontal (pointing left or right); keep
   // whichever of the four combinations puts the light source highest on screen.
-  function computeFlattenTarget() {
+  // Just the camera orientation (no scale) -- factored out so the angle-sweep
+  // animation can reuse it with a scale fitted to the *whole sweep*, not just
+  // this instant.
+  function computeFlattenOrientation() {
     const n = cross(A, B);
     const nLen = length(n);
     if (nLen < 1e-6) return null; // A and B are parallel (or one is zero) -- no defined plane
@@ -627,8 +642,14 @@
         }
       });
     });
-    best.scale = computeFitScale(fitPointsForMode(), best.yaw, best.pitch, best.roll);
     return best;
+  }
+
+  function computeFlattenTarget() {
+    const orientation = computeFlattenOrientation();
+    if (!orientation) return null;
+    orientation.scale = computeFitScale(fitPointsForMode(), orientation.yaw, orientation.pitch, orientation.roll);
+    return orientation;
   }
 
   function tweenViewTo(targetYaw, targetPitch, targetRoll, targetScale, duration) {
@@ -651,6 +672,119 @@
     } else {
       tweenViewTo(target.yaw, target.pitch, target.roll, target.scale, 700);
     }
+  });
+
+  // ============ ANIMATE ANGLE: SWEEP A AGAINST B ============
+  // Swings A through every angle from 0deg (flush with B, maximum positive
+  // shadow) to 180deg (opposite B, maximum negative shadow) and back, on a
+  // fixed circle of radius |A| in the plane A and B already share -- B never
+  // moves, so it stays the "ground line" the whole time. Easing with a cosine
+  // (rather than a linear ramp) means the sweep pauses gently at each extreme
+  // instead of reversing with a visible snap.
+  const SWEEP_PERIOD = 9; // seconds for one full 0deg -> 180deg -> 0deg round trip
+  let sweepActive = false;
+  let sweepState = null; // { u, v, rA, omega, tOffset, startTs }
+
+  // An orthonormal (u, v) basis for the A-B plane, plus A's current position
+  // in it, expressed as a radius and an angle phi0 in [0, pi] measured from
+  // B's direction -- exactly angleBetween(A, B). Sweeping phi over [0, pi]
+  // and reconstructing A = rA*(cos(phi) u + sin(phi) v) retraces that same
+  // plane without ever needing B to move.
+  function buildSweepBasis() {
+    const rA = length(A);
+    const lB = length(B);
+    if (rA < 1e-6 || lB < 1e-6) return null; // nothing to swing, or no B to swing it against
+
+    const u = scaleV(B, 1 / lB);
+    let n = cross(B, A);
+    if (length(n) < 1e-6) {
+      // A is parallel/antiparallel to B -- no plane defined yet, so pick any
+      // axis not already aligned with B to build one
+      const ax = Math.abs(B.x), ay = Math.abs(B.y), az = Math.abs(B.z);
+      const helper = (ax <= ay && ax <= az) ? { x: 1, y: 0, z: 0 } : (ay <= az ? { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 });
+      n = cross(B, helper);
+    }
+    const nLen = length(n);
+    n = scaleV(n, 1 / nLen);
+    let v = cross(n, u);
+    v = scaleV(v, 1 / length(v));
+
+    let phi0 = Math.atan2(dot(A, v), dot(A, u));
+    if (phi0 < 0) { v = scaleV(v, -1); phi0 = -phi0; } // fold onto [0, pi], matching angleBetween
+    return { u: u, v: v, rA: rA, phi0: phi0 };
+  }
+
+  // Fit scale for the *entire* sweep, not just the current instant -- samples
+  // A, its shadow landing point, and its light source all the way around
+  // phi in [0, pi] so the zoom stays put for the whole animation instead of
+  // pulsing in and out as A moves.
+  function computeSweepFitScale(basis, fitYaw, fitPitch, fitRoll) {
+    const points = [B];
+    const STEPS = 24;
+    for (let i = 0; i <= STEPS; i++) {
+      const phi = (i / STEPS) * Math.PI;
+      const a = addV(scaleV(basis.u, basis.rA * Math.cos(phi)), scaleV(basis.v, basis.rA * Math.sin(phi)));
+      points.push(a, projectionPoint(a, B));
+      const light = lightSourceFor(a, B);
+      if (light) points.push(light);
+    }
+    return computeFitScale(points, fitYaw, fitPitch, fitRoll);
+  }
+
+  function setVectorInputsDisabled(disabled) {
+    ['ax', 'ay', 'az', 'bx', 'by', 'bz'].forEach(function (prefix) {
+      document.getElementById(prefix + 'Slider').disabled = disabled;
+      document.getElementById(prefix + 'Value').disabled = disabled;
+    });
+  }
+
+  // Pushes A's current (animated) value into its sliders/text boxes without
+  // going through bindComponent's listeners -- those would just read the same
+  // value back out, but skipping them avoids re-entrant render() calls.
+  function syncVectorDisplay(prefix, vec) {
+    ['x', 'y', 'z'].forEach(function (axis) {
+      document.getElementById(prefix + axis + 'Slider').value = String(vec[axis]);
+      document.getElementById(prefix + axis + 'Value').value = fmt(vec[axis]);
+    });
+  }
+
+  function startSweep() {
+    const basis = buildSweepBasis();
+    if (!basis) return; // A or B is the zero vector -- no angle to sweep
+    sweepState = {
+      u: basis.u, v: basis.v, rA: basis.rA,
+      omega: (2 * Math.PI) / SWEEP_PERIOD,
+      tOffset: 0,
+      startTs: null,
+    };
+    // start the cosine easing exactly at A's current angle, so the sweep picks
+    // up from wherever the sliders already left it instead of jumping
+    const arg = Math.max(-1, Math.min(1, 1 - (2 * basis.phi0) / Math.PI));
+    sweepState.tOffset = Math.acos(arg) / sweepState.omega;
+
+    sweepActive = true;
+    setVectorInputsDisabled(true);
+    sweepBtn.textContent = '■ Stop animation';
+    sweepBtn.setAttribute('aria-pressed', 'true');
+
+    const orientation = computeFlattenOrientation();
+    if (orientation) {
+      const scale = computeSweepFitScale(basis, orientation.yaw, orientation.pitch, orientation.roll);
+      tweenViewTo(orientation.yaw, orientation.pitch, orientation.roll, scale, 700);
+    }
+  }
+
+  function stopSweep() {
+    sweepActive = false;
+    sweepState = null;
+    setVectorInputsDisabled(false);
+    sweepBtn.textContent = '▶ Animate angle';
+    sweepBtn.setAttribute('aria-pressed', 'false');
+    render();
+  }
+
+  sweepBtn.addEventListener('click', function () {
+    if (sweepActive) stopSweep(); else startSweep();
   });
 
   // ============ CANVAS SIZING ============
@@ -934,6 +1068,15 @@
       roll = viewTween.fromRoll + (viewTween.toRoll - viewTween.fromRoll) * e;
       viewScale = viewTween.fromScale + (viewTween.toScale - viewTween.fromScale) * e;
       if (t >= 1) viewTween = null;
+    }
+    if (sweepActive && sweepState) {
+      if (sweepState.startTs === null) sweepState.startTs = ts;
+      const elapsed = (ts - sweepState.startTs) / 1000 + sweepState.tOffset;
+      const phi = (Math.PI / 2) * (1 - Math.cos(sweepState.omega * elapsed));
+      const swept = addV(scaleV(sweepState.u, sweepState.rA * Math.cos(phi)), scaleV(sweepState.v, sweepState.rA * Math.sin(phi)));
+      A.x = swept.x; A.y = swept.y; A.z = swept.z;
+      syncVectorDisplay('a', A);
+      updateReadouts();
     }
     drawScene((ts - animStart) / 1000);
     requestAnimationFrame(animFrame);
