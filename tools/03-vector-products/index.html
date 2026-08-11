@@ -289,7 +289,7 @@
     <div class="viewport-toolbar">
       <div class="viewport-hint">Drag to rotate &middot; scroll to zoom</div>
       <div class="viewport-actions">
-        <button class="btn-ghost" id="sweepBtn" type="button" title="Swing A through every angle from 0&deg; to 180&deg; and back, and watch the shadow track it" aria-pressed="false">&#9654; Animate angle</button>
+        <button class="btn-ghost" id="sweepBtn" type="button" title="Swing A through every angle from 0&deg; to 180&deg; and back" aria-pressed="false">&#9654; Animate angle</button>
         <button class="btn-ghost" id="flattenBtn" type="button" title="Rotate to view the plane A and B span, face-on, with the light overhead">&#9737; Overhead view</button>
         <button class="btn-ghost" id="resetViewBtn" type="button">&#8635; Reset view</button>
       </div>
@@ -462,8 +462,12 @@
     chip.textContent = m.label;
     chip.addEventListener('click', function () {
       mode = m.id;
-      if (mode !== 'dot' && sweepActive) stopSweep();
       updateModeChips(); updateToolbarForMode(); render();
+      // the sweep itself is mode-agnostic (it just moves A), but each mode
+      // wants a different camera for it -- dot mode wants the flattened
+      // sundial view, cross mode wants to keep whatever 3D angle it had so
+      // A×B doesn't collapse to a point
+      if (sweepActive && sweepState) applySweepCamera(sweepState);
     });
     modeChipsHost.appendChild(chip);
     return chip;
@@ -471,14 +475,16 @@
   function updateModeChips() {
     modeChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', MODES[i].id === mode); });
   }
-  // the overhead-view and animate-angle buttons only make sense in dot mode --
-  // cross mode has no light/shadow to flatten toward or sweep through. The
-  // sweep also needs the continuous render loop, which never runs under
-  // prefers-reduced-motion, so it's hidden there too rather than offering a
-  // control that can't actually play.
+  // "Overhead view" only makes sense in dot mode -- cross mode has no
+  // light/shadow to flatten toward, and flattening onto the A-B plane would
+  // collapse A×B (which points straight off that plane) down to a single
+  // point on screen. "Animate angle" works in both modes -- it just sweeps A,
+  // and each mode already knows how to draw itself. It needs the continuous
+  // render loop, which never runs under prefers-reduced-motion, so it's
+  // hidden there too rather than offering a control that can't actually play.
   function updateToolbarForMode() {
     flattenBtn.style.display = mode === 'dot' ? '' : 'none';
-    sweepBtn.style.display = (mode === 'dot' && !reduceMotion) ? '' : 'none';
+    sweepBtn.style.display = reduceMotion ? 'none' : '';
   }
 
   // ---- vector component sliders ----
@@ -605,25 +611,23 @@
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
-  // A×B and B×A are the two normals of the A-B plane -- either flattens the
-  // view, but from opposite sides (a mirror image of each other), which changes
-  // which roll puts the light above versus below. Try both normals, and for
+  // n and -n are the two normals of a plane -- either flattens the view onto
+  // it, but from opposite sides (a mirror image of each other), which changes
+  // which roll puts `upRef` above versus below. Try both normals, and for
   // each, both ways of laying B horizontal (pointing left or right); keep
-  // whichever of the four combinations puts the light source highest on screen.
-  // Just the camera orientation (no scale) -- factored out so the angle-sweep
-  // animation can reuse it with a scale fitted to the *whole sweep*, not just
-  // this instant.
-  function computeFlattenOrientation() {
-    const n = cross(A, B);
+  // whichever of the four combinations puts upRef highest on screen. Shared by
+  // "Overhead view" (n = A×B, upRef = the light source) and the sweep's own
+  // orientation pick (n = the sweep plane's normal, upRef = the sweep's "+v"
+  // direction -- where A stays for its entire 0-180deg traverse, so that side
+  // stays up for the whole animation, not just one instant).
+  function computeOrientationFacing(n, upRef) {
     const nLen = length(n);
-    if (nLen < 1e-6) return null; // A and B are parallel (or one is zero) -- no defined plane
-
-    const light = lightSourceFor(A, B);
+    if (nLen < 1e-6) return null;
 
     let best = null;
-    [n, scaleV(n, -1)].forEach(function (v) {
-      const vLen = length(v);
-      const ux = v.x / vLen, uy = v.y / vLen, uz = v.z / vLen;
+    [n, scaleV(n, -1)].forEach(function (candidate) {
+      const vLen = length(candidate);
+      const ux = candidate.x / vLen, uy = candidate.y / vLen, uz = candidate.z / vLen;
       const r = Math.sqrt(ux * ux + uz * uz);
       const baseYaw = Math.atan2(-ux, uz);
       const basePitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, Math.atan2(uy, r)));
@@ -634,15 +638,22 @@
 
       [0, Math.PI].forEach(function (flip) {
         const targetRoll = -bAngle + flip;
-        // where would the light source land with this candidate view? (higher
-        // on screen = larger rotated p.y, since projectPoint flips y for canvas)
-        const upScore = light ? rotatePoint(light, baseYaw, basePitch, targetRoll).y : -Infinity;
+        // where would upRef land with this candidate view? (higher on screen
+        // = larger rotated p.y, since projectPoint flips y for canvas)
+        const upScore = upRef ? rotatePoint(upRef, baseYaw, basePitch, targetRoll).y : -Infinity;
         if (best === null || upScore > best.upScore) {
           best = { yaw: baseYaw, pitch: basePitch, roll: targetRoll, upScore: upScore };
         }
       });
     });
     return best;
+  }
+
+  // Just the camera orientation (no scale) -- factored out so the angle-sweep
+  // animation can reuse the same solver with a scale fitted to the *whole
+  // sweep*, not just this instant.
+  function computeFlattenOrientation() {
+    return computeOrientationFacing(cross(A, B), lightSourceFor(A, B));
   }
 
   function computeFlattenTarget() {
@@ -715,20 +726,45 @@
   }
 
   // Fit scale for the *entire* sweep, not just the current instant -- samples
-  // A, its shadow landing point, and its light source all the way around
-  // phi in [0, pi] so the zoom stays put for the whole animation instead of
-  // pulsing in and out as A moves.
+  // every mode-relevant point all the way around phi in [0, pi] so the zoom
+  // stays put for the whole animation instead of pulsing in and out as A
+  // moves (dot mode: A, its shadow landing point, its light source; cross
+  // mode: A, the parallelogram's far corner, A×B).
   function computeSweepFitScale(basis, fitYaw, fitPitch, fitRoll) {
     const points = [B];
     const STEPS = 24;
     for (let i = 0; i <= STEPS; i++) {
       const phi = (i / STEPS) * Math.PI;
       const a = addV(scaleV(basis.u, basis.rA * Math.cos(phi)), scaleV(basis.v, basis.rA * Math.sin(phi)));
-      points.push(a, projectionPoint(a, B));
-      const light = lightSourceFor(a, B);
-      if (light) points.push(light);
+      if (mode === 'cross') {
+        points.push(a, addV(a, B), cross(a, B));
+      } else {
+        points.push(a, projectionPoint(a, B));
+        const light = lightSourceFor(a, B);
+        if (light) points.push(light);
+      }
     }
     return computeFitScale(points, fitYaw, fitPitch, fitRoll);
+  }
+
+  // Sets up the camera once a sweep is (re)started or the mode changes while
+  // one is running. Dot mode flattens onto the sweep's own plane, rolled so
+  // the sweep's "+v" side (where A lives for its whole 0-180deg traverse)
+  // stays up the entire time -- not just at the instant the sweep began.
+  // Cross mode leaves the camera where it is: flattening onto the plane would
+  // collapse A×B, which points straight off it, down to a single point.
+  function applySweepCamera(basis) {
+    if (mode === 'dot') {
+      const n = cross(basis.u, basis.v);
+      const orientation = computeOrientationFacing(n, basis.v);
+      if (orientation) {
+        const scale = computeSweepFitScale(basis, orientation.yaw, orientation.pitch, orientation.roll);
+        tweenViewTo(orientation.yaw, orientation.pitch, orientation.roll, scale, 700);
+        return;
+      }
+    }
+    const scale = computeSweepFitScale(basis, yaw, pitch, roll);
+    tweenViewTo(yaw, pitch, roll, scale, 500);
   }
 
   function setVectorInputsDisabled(disabled) {
@@ -766,12 +802,7 @@
     setVectorInputsDisabled(true);
     sweepBtn.textContent = '■ Stop animation';
     sweepBtn.setAttribute('aria-pressed', 'true');
-
-    const orientation = computeFlattenOrientation();
-    if (orientation) {
-      const scale = computeSweepFitScale(basis, orientation.yaw, orientation.pitch, orientation.roll);
-      tweenViewTo(orientation.yaw, orientation.pitch, orientation.roll, scale, 700);
-    }
+    applySweepCamera(sweepState);
   }
 
   function stopSweep() {
