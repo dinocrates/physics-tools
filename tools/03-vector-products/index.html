@@ -137,6 +137,7 @@
     flex-wrap: wrap;
   }
   .viewport-hint { font-size: 0.76rem; color: var(--ink-faint); }
+  .viewport-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .btn-ghost {
     flex: none;
     background: var(--surface-2);
@@ -285,7 +286,10 @@
   <section class="viewport-panel panel-8bit" aria-label="3D scene">
     <div class="viewport-toolbar">
       <div class="viewport-hint">Drag to rotate &middot; scroll to zoom</div>
-      <button class="btn-ghost" id="resetViewBtn" type="button">&#8635; Reset view</button>
+      <div class="viewport-actions">
+        <button class="btn-ghost" id="flattenBtn" type="button" title="Rotate to view the plane A and B span, face-on, with the light overhead">&#9737; Overhead view</button>
+        <button class="btn-ghost" id="resetViewBtn" type="button">&#8635; Reset view</button>
+      </div>
     </div>
     <div class="scene-wrap" id="sceneWrap">
       <canvas id="scene"></canvas>
@@ -377,7 +381,7 @@
   function fmtVec(v) { return '(' + fmt(v.x) + ', ' + fmt(v.y) + ', ' + fmt(v.z) + ')'; }
 
   // ============ 3D ROTATION + PROJECTION ============
-  function rotatePoint(p, yaw, pitch) {
+  function rotatePoint(p, yaw, pitch, roll) {
     const cy = Math.cos(yaw), sy = Math.sin(yaw);
     const x1 = p.x * cy + p.z * sy;
     const z1 = -p.x * sy + p.z * cy;
@@ -385,7 +389,11 @@
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     const y2 = y1 * cp - z1 * sp;
     const z2 = y1 * sp + z1 * cp;
-    return { x: x1, y: y2, z: z2 };
+    if (!roll) return { x: x1, y: y2, z: z2 };
+    // roll spins the camera around its own view axis -- doesn't touch depth (z2),
+    // only used by the "overhead view" auto-rotate, since orbit dragging never sets it
+    const cr = Math.cos(roll), sr = Math.sin(roll);
+    return { x: x1 * cr - y2 * sr, y: x1 * sr + y2 * cr, z: z2 };
   }
   function projectPoint(p, opts) {
     const denom = opts.focal + p.z;
@@ -398,9 +406,9 @@
   let A = { x: 3, y: 2, z: 0 };
   let B = { x: 1, y: 3, z: 2 };
   let mode = 'dot';
-  let yaw = 0.6, pitch = 0.32;
+  let yaw = 0.6, pitch = 0.32, roll = 0;
   let viewScale = 34;
-  const DEFAULT_YAW = 0.6, DEFAULT_PITCH = 0.32, DEFAULT_SCALE = 34;
+  const DEFAULT_YAW = 0.6, DEFAULT_PITCH = 0.32, DEFAULT_SCALE = 34, DEFAULT_ROLL = 0;
   const FOCAL = 420;
 
   // ============ DOM ============
@@ -409,6 +417,7 @@
   const sceneWrap = document.getElementById('sceneWrap');
   const modeChipsHost = document.getElementById('modeChips');
   const resetViewBtn = document.getElementById('resetViewBtn');
+  const flattenBtn = document.getElementById('flattenBtn');
   const magA = document.getElementById('magA');
   const magB = document.getElementById('magB');
   const roMagA = document.getElementById('roMagA');
@@ -430,12 +439,17 @@
     chip.type = 'button';
     chip.className = 'chip';
     chip.textContent = m.label;
-    chip.addEventListener('click', function () { mode = m.id; updateModeChips(); render(); });
+    chip.addEventListener('click', function () { mode = m.id; updateModeChips(); updateToolbarForMode(); render(); });
     modeChipsHost.appendChild(chip);
     return chip;
   });
   function updateModeChips() {
     modeChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', MODES[i].id === mode); });
+  }
+  // the overhead-view button only makes sense in dot mode -- cross mode has no
+  // light/shadow to flatten toward
+  function updateToolbarForMode() {
+    flattenBtn.style.display = mode === 'dot' ? '' : 'none';
   }
 
   // ---- vector component sliders ----
@@ -495,8 +509,102 @@
   }, { passive: false });
 
   resetViewBtn.addEventListener('click', function () {
-    yaw = DEFAULT_YAW; pitch = DEFAULT_PITCH; viewScale = DEFAULT_SCALE;
+    viewTween = null;
+    yaw = DEFAULT_YAW; pitch = DEFAULT_PITCH; viewScale = DEFAULT_SCALE; roll = DEFAULT_ROLL;
     render();
+  });
+
+  // ============ AUTO-ROTATE: FLATTEN TO THE A-B PLANE ============
+  // Rotating so the view axis lines up with A×B (the one direction genuinely
+  // orthogonal to both vectors) makes the plane A and B span face the camera
+  // dead-on -- both vectors land with zero screen-depth. That's provable: A and
+  // B are each perpendicular to their own cross product by definition, and a
+  // rotation preserves dot products, so once the rotated normal points straight
+  // along the view axis, A's and B's rotated z (depth) is forced to exactly 0.
+  //
+  // Yaw+pitch alone only pick WHERE the camera points, not how it's rolled, so
+  // which way B ends up facing on screen is otherwise arbitrary. A third "roll"
+  // (rotation around the view axis itself, see rotatePoint) fixes that: lay B
+  // down flat and horizontal, like the ground line of a sundial, so the light
+  // -- always perpendicular to B by construction -- reads as shining straight
+  // down from overhead.
+  let viewTween = null; // { fromYaw, fromPitch, fromRoll, toYaw, toPitch, toRoll, start, duration }
+  const PITCH_LIMIT = 1.45; // matches the drag clamp -- keeps the camera from flipping over the pole
+
+  function shortestDeltaAngle(a, b) {
+    let d = (b - a) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  // A×B and B×A are the two normals of the A-B plane -- either flattens the
+  // view, but from opposite sides (a mirror image of each other), which changes
+  // which roll puts the light above versus below. Try both normals, and for
+  // each, both ways of laying B horizontal (pointing left or right); keep
+  // whichever of the four combinations puts the light source highest on screen.
+  function computeFlattenTarget() {
+    const n = cross(A, B);
+    const nLen = length(n);
+    if (nLen < 1e-6) return null; // A and B are parallel (or one is zero) -- no defined plane
+
+    const proj = projectionPoint(A, B);
+    const gapVec = { x: A.x - proj.x, y: A.y - proj.y, z: A.z - proj.z };
+    const gapLen = length(gapVec);
+
+    let best = null;
+    [n, scaleV(n, -1)].forEach(function (v) {
+      const vLen = length(v);
+      const ux = v.x / vLen, uy = v.y / vLen, uz = v.z / vLen;
+      const r = Math.sqrt(ux * ux + uz * uz);
+      const baseYaw = Math.atan2(-ux, uz);
+      const basePitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, Math.atan2(uy, r)));
+
+      // B's camera-space angle (pre-roll) tells us the roll that lays it flat
+      const bCam = rotatePoint(B, baseYaw, basePitch, 0);
+      const bAngle = Math.atan2(bCam.y, bCam.x);
+
+      [0, Math.PI].forEach(function (flip) {
+        const targetRoll = -bAngle + flip;
+        // where would the light source land with this candidate view? (higher
+        // on screen = larger rotated p.y, since projectPoint flips y for canvas)
+        let upScore = -Infinity;
+        if (gapLen > 1e-4) {
+          const perpDir = scaleV(gapVec, 1 / gapLen);
+          const lightPos = addV(A, scaleV(perpDir, Math.max(1.1, gapLen * 0.8)));
+          upScore = rotatePoint(lightPos, baseYaw, basePitch, targetRoll).y;
+        }
+        if (best === null || upScore > best.upScore) {
+          best = { yaw: baseYaw, pitch: basePitch, roll: targetRoll, upScore: upScore };
+        }
+      });
+    });
+    return best;
+  }
+
+  function tweenViewTo(targetYaw, targetPitch, targetRoll, duration) {
+    const dYaw = shortestDeltaAngle(yaw, targetYaw);
+    const dRoll = shortestDeltaAngle(roll, targetRoll);
+    viewTween = {
+      fromYaw: yaw, fromPitch: pitch, fromRoll: roll,
+      toYaw: yaw + dYaw, toPitch: targetPitch, toRoll: roll + dRoll,
+      start: null, duration: duration,
+    };
+  }
+
+  flattenBtn.addEventListener('click', function () {
+    const target = computeFlattenTarget();
+    if (!target) return; // A and B are parallel right now -- no plane to flatten to
+    if (reduceMotion) {
+      viewTween = null;
+      yaw = target.yaw; pitch = target.pitch; roll = target.roll;
+      render();
+    } else {
+      tweenViewTo(target.yaw, target.pitch, target.roll, 700);
+    }
   });
 
   // ============ CANVAS SIZING ============
@@ -516,7 +624,7 @@
   }
 
   function toScreen(p, w, h) {
-    const r = rotatePoint(p, yaw, pitch);
+    const r = rotatePoint(p, yaw, pitch, roll);
     return projectPoint(r, { focal: FOCAL, scale: viewScale, cx: w / 2, cy: h / 2 });
   }
 
@@ -727,6 +835,15 @@
   let animStart = null;
   function animFrame(ts) {
     if (animStart === null) animStart = ts;
+    if (viewTween) {
+      if (viewTween.start === null) viewTween.start = ts;
+      const t = Math.min(1, (ts - viewTween.start) / viewTween.duration);
+      const e = easeInOutCubic(t);
+      yaw = viewTween.fromYaw + (viewTween.toYaw - viewTween.fromYaw) * e;
+      pitch = viewTween.fromPitch + (viewTween.toPitch - viewTween.fromPitch) * e;
+      roll = viewTween.fromRoll + (viewTween.toRoll - viewTween.fromRoll) * e;
+      if (t >= 1) viewTween = null;
+    }
     drawScene((ts - animStart) / 1000);
     requestAnimationFrame(animFrame);
   }
@@ -766,6 +883,7 @@
   }
 
   updateModeChips();
+  updateToolbarForMode();
   resizeCanvas();
   if (!reduceMotion) requestAnimationFrame(animFrame);
 })();
