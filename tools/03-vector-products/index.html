@@ -520,12 +520,14 @@
     return projectPoint(r, { focal: FOCAL, scale: viewScale, cx: w / 2, cy: h / 2 });
   }
 
-  function drawLine(p1, p2, w, h, color, width, dash) {
+  function drawLine(p1, p2, w, h, color, width, dash, alpha, dashOffset) {
     const s1 = toScreen(p1, w, h), s2 = toScreen(p2, w, h);
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = width || 2;
     ctx.setLineDash(dash || []);
+    ctx.lineDashOffset = dashOffset || 0;
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
     ctx.beginPath();
     ctx.moveTo(s1.x, s1.y);
     ctx.lineTo(s2.x, s2.y);
@@ -596,14 +598,88 @@
     ctx.restore();
   }
 
-  function drawDotViz(w, h) {
+  function drawDotViz(w, h, animT) {
     const d = dot(A, B);
     const proj = projectionPoint(A, B);
     const positive = d > 1e-6, negative = d < -1e-6;
     const shadowColor = positive ? css('--positive') : negative ? css('--danger') : css('--ink-faint');
-    drawLine(A, proj, w, h, css('--ink-soft'), 1.5, [4, 4]);
+
+    // the shadow itself: bold segment from the origin to where A's light lands on B
     drawLine(O, proj, w, h, shadowColor, 4.5);
+
+    // soft dark mark where the shadow actually lands
     const sp = toScreen(proj, w, h);
+    ctx.save();
+    const shadowGrad = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, 11);
+    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.5)');
+    shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadowGrad;
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // the light itself: parallel rays perpendicular to B, grazing A's tip and
+    // landing at proj. The light source, A, and proj are exactly collinear --
+    // that line's direction IS "perpendicular to B", by construction of proj.
+    const gapVec = { x: A.x - proj.x, y: A.y - proj.y, z: A.z - proj.z };
+    const gapLen = length(gapVec);
+    if (gapLen > 1e-4) {
+      const perpDir = scaleV(gapVec, 1 / gapLen);
+      const lightDist = Math.max(1.1, gapLen * 0.8);
+      const lightPos = addV(A, scaleV(perpDir, lightDist));
+      const gold = css('--gold');
+      const dashOffset = animT === undefined ? 0 : -animT * 26;
+
+      // two faint companion rays (offset in 2D screen space) so this reads as
+      // parallel light, not a single spotlight beam
+      const s1 = toScreen(lightPos, w, h), s2 = toScreen(proj, w, h);
+      const rdx = s2.x - s1.x, rdy = s2.y - s1.y;
+      const rlen = Math.hypot(rdx, rdy) || 1;
+      const px = -rdy / rlen, py = rdx / rlen;
+      [-1, 1].forEach(function (side) {
+        const off = side * 9;
+        ctx.save();
+        ctx.strokeStyle = gold;
+        ctx.globalAlpha = 0.2;
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([6, 5]);
+        ctx.lineDashOffset = dashOffset;
+        ctx.beginPath();
+        ctx.moveTo(s1.x + px * off, s1.y + py * off);
+        ctx.lineTo(s2.x + px * off, s2.y + py * off);
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // the main ray -- passes right through A's tip on its way down to proj
+      drawLine(lightPos, proj, w, h, gold, 1.5, [6, 5], 0.6, dashOffset);
+
+      // the light source
+      const pulse = animT === undefined ? 1 : 0.75 + 0.25 * Math.sin(animT * 2.2);
+      ctx.save();
+      ctx.shadowColor = gold;
+      ctx.shadowBlur = 16 * pulse;
+      ctx.fillStyle = gold;
+      ctx.beginPath();
+      ctx.arc(s1.x, s1.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.75;
+      ctx.strokeStyle = gold;
+      ctx.lineWidth = 1.4;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const r1 = 8, r2 = 12 + 2 * pulse;
+        ctx.beginPath();
+        ctx.moveTo(s1.x + Math.cos(a) * r1, s1.y + Math.sin(a) * r1);
+        ctx.lineTo(s1.x + Math.cos(a) * r2, s1.y + Math.sin(a) * r2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // marker right at the landing point, on top of everything
     ctx.save();
     ctx.fillStyle = shadowColor;
     ctx.beginPath();
@@ -619,7 +695,7 @@
     }
   }
 
-  function render() {
+  function drawScene(animT) {
     const rect = sceneWrap.getBoundingClientRect();
     const w = rect.width, h = rect.height;
     ctx.clearRect(0, 0, w, h);
@@ -631,9 +707,28 @@
     if (mode === 'cross') drawParallelogram(w, h);
     drawArrow(O, A, w, h, css('--cyan'), 'A');
     drawArrow(O, B, w, h, css('--accent'), 'B');
-    if (mode === 'dot') drawDotViz(w, h);
+    if (mode === 'dot') drawDotViz(w, h, animT);
     if (mode === 'cross') drawCrossResultArrow(w, h);
+  }
+
+  // render() is called from every interaction (slider drag, orbit, resize, mode
+  // switch) -- draws the scene AND refreshes the DOM readouts. The continuous
+  // animation loop below calls drawScene() directly instead, since the light's
+  // dash-travel/pulse is the only thing that needs to redraw every frame; the
+  // readouts don't change just because time passed.
+  function render() {
+    drawScene();
     updateReadouts();
+  }
+
+  // ---- continuous light animation (dash travel + glow pulse), paused for
+  // prefers-reduced-motion, in which case the light is drawn once, static ----
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let animStart = null;
+  function animFrame(ts) {
+    if (animStart === null) animStart = ts;
+    drawScene((ts - animStart) / 1000);
+    requestAnimationFrame(animFrame);
   }
 
   // ============ READOUTS ============
@@ -656,7 +751,7 @@
       roExtraWrap.style.display = 'flex';
       roExtraLabel.textContent = "Shadow length (A's, on B)";
       roExtra.textContent = fmt(shadow);
-      explainText.innerHTML = 'The dot product measures how much <strong style="color:var(--cyan)">A</strong> points in the direction of <strong style="color:var(--accent)">B</strong> &mdash; literally the length of the shadow A casts onto B’s line, times |B|. Same direction: long positive shadow. Perpendicular: no shadow, zero. Opposite directions: the shadow falls behind the origin, and the dot product goes negative.';
+      explainText.innerHTML = 'Picture parallel light shining perpendicular to <strong style="color:var(--accent)">B</strong> &mdash; the little sun in the scene. Wherever the tip of <strong style="color:var(--cyan)">A</strong> blocks that light, it casts a shadow onto B’s line. The dot product is the length of that shadow, times |B|. Same direction: long positive shadow. Perpendicular: no shadow, zero. Opposite directions: the shadow falls behind the origin, and the dot product goes negative.';
     } else {
       const C = cross(A, B);
       const magC = length(C);
@@ -672,6 +767,7 @@
 
   updateModeChips();
   resizeCanvas();
+  if (!reduceMotion) requestAnimationFrame(animFrame);
 })();
 </script>
 </body>
