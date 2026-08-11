@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vector Products Lab</title>
+<meta name="description" content="See what dot products and cross products actually mean, geometrically — rotate a 3D scene and watch the shadow/projection or the perpendicular result vector update live." />
+<style>
+  :root {
+    --bg: #0B0A18;
+    --surface: #17132B;
+    --surface-2: #1F1A3B;
+    --ink: #F4EFE6;
+    --ink-soft: #B7ADD9;
+    --ink-faint: #7B6FA6;
+    --line: #2A2350;
+    --line-bright: #5B4A96;
+    --accent: #FF4D7E;
+    --cyan: #33F1E6;
+    --gold: #FFD84D;
+    --positive: #4ADE80;
+    --danger: #FF6B4A;
+    --shadow-color: #000000;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    padding: 2.25rem 1.25rem 4rem;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.14) 0px,
+      rgba(0, 0, 0, 0.14) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.85rem;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  /* ---------- 8-bit panel utility ---------- */
+  .panel-8bit { position: relative; z-index: 0; }
+  .panel-8bit::before, .panel-8bit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+  }
+  .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
+  .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 3px solid var(--line-bright);
+    padding-bottom: 1.4rem;
+  }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+  .eyebrow::before { content: '// '; opacity: 0.7; }
+  header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
+  header.masthead p {
+    margin: 0.3rem 0 0; color: var(--ink-soft); max-width: 68ch; font-size: 0.92rem;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
+
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- mode switcher ---------- */
+  .mode-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .chip {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip:active { transform: translate(3px, 3px); box-shadow: none; }
+  .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
+
+  /* ---------- viewport ---------- */
+  .viewport-panel { padding: 0.9rem; }
+  .viewport-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .viewport-hint { font-size: 0.76rem; color: var(--ink-faint); }
+  .btn-ghost {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  .scene-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: var(--bg);
+    border: 2px solid var(--line-bright);
+    overflow: hidden;
+    touch-action: none;
+    cursor: grab;
+  }
+  .scene-wrap.dragging { cursor: grabbing; }
+  .scene-wrap canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---------- vector controls ---------- */
+  .vectors-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+  }
+  .vector-card { padding: 1.1rem 1.2rem 1.2rem; }
+  .vector-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+  }
+  .vector-name { font-size: 1rem; font-weight: 700; }
+  .vector-mag { font-size: 0.8rem; color: var(--ink-faint); }
+  .comp-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .comp-row:last-child { margin-bottom: 0; }
+  .comp-label { flex: none; width: 1.1rem; font-size: 0.85rem; font-weight: 700; color: var(--ink-faint); }
+  input[type="range"].comp-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 0.4rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    cursor: pointer;
+  }
+  input[type="range"].comp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.9rem;
+    height: 1.3rem;
+    background: var(--thumb-color, var(--cyan));
+    border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color);
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"].comp-slider::-moz-range-thumb {
+    width: 0.9rem; height: 1.3rem; background: var(--thumb-color, var(--cyan)); border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color); cursor: pointer; border-radius: 0;
+  }
+  input.comp-value {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 0.28rem 0.4rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--ink);
+    width: 3.6rem;
+    text-align: right;
+    flex: none;
+  }
+
+  /* ---------- readouts ---------- */
+  .readout-panel { padding: 1.2rem 1.4rem 1.4rem; }
+  .readout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  .readout-item { display: flex; flex-direction: column; gap: 0.25rem; }
+  .readout-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; }
+  .readout-value { font-size: 1.1rem; font-weight: 700; color: var(--ink); }
+  .readout-value.accent-gold { color: var(--gold); }
+  .readout-value.accent-positive { color: var(--positive); }
+  .readout-value.accent-danger { color: var(--danger); }
+
+  .result-banner {
+    padding: 0.9rem 1.1rem;
+    border: 2px dashed var(--line-bright);
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+  .result-banner .rb-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.35rem; }
+  .result-banner .rb-value { font-size: 1.6rem; font-weight: 700; text-shadow: 2px 2px 0 var(--shadow-color); }
+
+  .explain-text { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; }
+  .explain-text strong { color: var(--ink); }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    padding-top: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+  footer::after { content: '_'; color: var(--cyan); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    footer::after { animation: none; opacity: 1; }
+    .chip, .btn-ghost { transition: none; }
+  }
+
+  @media (max-width: 640px) {
+    header.masthead h1 { font-size: 1.6rem; }
+    .vectors-row { grid-template-columns: 1fr; }
+    .result-banner .rb-value { font-size: 1.3rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow">Vectors &middot; Dot &amp; Cross Products</div>
+    <h1>Vector Products Lab</h1>
+    <p>Drag the scene to rotate it in 3D, adjust either vector, and watch what a dot product or cross product actually <em>means</em> geometrically &mdash; not just how to compute one.</p>
+  </header>
+
+  <div class="mode-chips" id="modeChips"></div>
+
+  <section class="viewport-panel panel-8bit" aria-label="3D scene">
+    <div class="viewport-toolbar">
+      <div class="viewport-hint">Drag to rotate &middot; scroll to zoom</div>
+      <button class="btn-ghost" id="resetViewBtn" type="button">&#8635; Reset view</button>
+    </div>
+    <div class="scene-wrap" id="sceneWrap">
+      <canvas id="scene"></canvas>
+    </div>
+  </section>
+
+  <section class="vectors-row">
+    <div class="vector-card panel-8bit">
+      <div class="vector-card-head">
+        <span class="vector-name" style="color:var(--cyan);">Vector A</span>
+        <span class="vector-mag mono" id="magA"></span>
+      </div>
+      <div class="comp-row"><span class="comp-label">x</span><input type="range" class="comp-slider" id="axSlider" style="--thumb-color:var(--cyan);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="axValue" /></div>
+      <div class="comp-row"><span class="comp-label">y</span><input type="range" class="comp-slider" id="aySlider" style="--thumb-color:var(--cyan);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="ayValue" /></div>
+      <div class="comp-row"><span class="comp-label">z</span><input type="range" class="comp-slider" id="azSlider" style="--thumb-color:var(--cyan);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="azValue" /></div>
+    </div>
+    <div class="vector-card panel-8bit">
+      <div class="vector-card-head">
+        <span class="vector-name" style="color:var(--accent);">Vector B</span>
+        <span class="vector-mag mono" id="magB"></span>
+      </div>
+      <div class="comp-row"><span class="comp-label">x</span><input type="range" class="comp-slider" id="bxSlider" style="--thumb-color:var(--accent);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="bxValue" /></div>
+      <div class="comp-row"><span class="comp-label">y</span><input type="range" class="comp-slider" id="bySlider" style="--thumb-color:var(--accent);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="byValue" /></div>
+      <div class="comp-row"><span class="comp-label">z</span><input type="range" class="comp-slider" id="bzSlider" style="--thumb-color:var(--accent);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="bzValue" /></div>
+    </div>
+  </section>
+
+  <section class="readout-panel panel-8bit" aria-label="Results">
+    <div class="readout-grid">
+      <div class="readout-item"><span class="readout-label">|A|</span><span class="readout-value mono" id="roMagA">&mdash;</span></div>
+      <div class="readout-item"><span class="readout-label">|B|</span><span class="readout-value mono" id="roMagB">&mdash;</span></div>
+      <div class="readout-item"><span class="readout-label">Angle between them</span><span class="readout-value mono" id="roAngle">&mdash;</span></div>
+      <div class="readout-item" id="roExtraWrap" style="display:none;"><span class="readout-label" id="roExtraLabel"></span><span class="readout-value mono" id="roExtra">&mdash;</span></div>
+    </div>
+    <div class="result-banner">
+      <div class="rb-label" id="resultLabel">A &middot; B</div>
+      <div class="rb-value mono" id="resultValue">&mdash;</div>
+    </div>
+    <p class="explain-text" id="explainText"></p>
+  </section>
+
+  <footer>Drag to confirm it for yourself &mdash; that's the point</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ VECTOR MATH ============
+  function dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+  function cross(a, b) {
+    return {
+      x: a.y * b.z - a.z * b.y,
+      y: a.z * b.x - a.x * b.z,
+      z: a.x * b.y - a.y * b.x,
+    };
+  }
+  function length(a) { return Math.sqrt(dot(a, a)); }
+  function scaleV(a, s) { return { x: a.x * s, y: a.y * s, z: a.z * s }; }
+  function addV(a, b) { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+
+  function angleBetween(a, b) {
+    const la = length(a), lb = length(b);
+    if (la === 0 || lb === 0) return null;
+    let c = dot(a, b) / (la * lb);
+    c = Math.max(-1, Math.min(1, c));
+    return Math.acos(c);
+  }
+  function scalarProjection(a, b) {
+    const lb = length(b);
+    if (lb === 0) return 0;
+    return dot(a, b) / lb;
+  }
+  function projectionPoint(a, b) {
+    const lb2 = dot(b, b);
+    if (lb2 === 0) return { x: 0, y: 0, z: 0 };
+    const t = dot(a, b) / lb2;
+    return scaleV(b, t);
+  }
+
+  // ============ FORMATTING ============
+  function fmt(n, decimals) {
+    if (!isFinite(n)) return '0';
+    const d = decimals === undefined ? 2 : decimals;
+    let s = n.toFixed(d);
+    if (s === '-0.00' || s === '-0.0' || s === '-0') s = s.slice(1);
+    return s;
+  }
+  function fmtVec(v) { return '(' + fmt(v.x) + ', ' + fmt(v.y) + ', ' + fmt(v.z) + ')'; }
+
+  // ============ 3D ROTATION + PROJECTION ============
+  function rotatePoint(p, yaw, pitch) {
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const x1 = p.x * cy + p.z * sy;
+    const z1 = -p.x * sy + p.z * cy;
+    const y1 = p.y;
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const y2 = y1 * cp - z1 * sp;
+    const z2 = y1 * sp + z1 * cp;
+    return { x: x1, y: y2, z: z2 };
+  }
+  function projectPoint(p, opts) {
+    const denom = opts.focal + p.z;
+    const f = denom !== 0 ? opts.focal / denom : opts.focal;
+    return { x: opts.cx + p.x * f * opts.scale, y: opts.cy - p.y * f * opts.scale, depth: p.z };
+  }
+
+  // ============ STATE ============
+  const O = { x: 0, y: 0, z: 0 };
+  let A = { x: 3, y: 2, z: 0 };
+  let B = { x: 1, y: 3, z: 2 };
+  let mode = 'dot';
+  let yaw = 0.6, pitch = 0.32;
+  let viewScale = 34;
+  const DEFAULT_YAW = 0.6, DEFAULT_PITCH = 0.32, DEFAULT_SCALE = 34;
+  const FOCAL = 420;
+
+  // ============ DOM ============
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const sceneWrap = document.getElementById('sceneWrap');
+  const modeChipsHost = document.getElementById('modeChips');
+  const resetViewBtn = document.getElementById('resetViewBtn');
+  const magA = document.getElementById('magA');
+  const magB = document.getElementById('magB');
+  const roMagA = document.getElementById('roMagA');
+  const roMagB = document.getElementById('roMagB');
+  const roAngle = document.getElementById('roAngle');
+  const roExtraWrap = document.getElementById('roExtraWrap');
+  const roExtraLabel = document.getElementById('roExtraLabel');
+  const roExtra = document.getElementById('roExtra');
+  const resultLabel = document.getElementById('resultLabel');
+  const resultValue = document.getElementById('resultValue');
+  const explainText = document.getElementById('explainText');
+
+  const MODES = [
+    { id: 'dot', label: 'Dot Product' },
+    { id: 'cross', label: 'Cross Product' },
+  ];
+  const modeChipEls = MODES.map(function (m) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = m.label;
+    chip.addEventListener('click', function () { mode = m.id; updateModeChips(); render(); });
+    modeChipsHost.appendChild(chip);
+    return chip;
+  });
+  function updateModeChips() {
+    modeChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', MODES[i].id === mode); });
+  }
+
+  // ---- vector component sliders ----
+  function bindComponent(sliderId, valueId, vec, key, onChange) {
+    const slider = document.getElementById(sliderId);
+    const value = document.getElementById(valueId);
+    slider.value = String(vec[key]);
+    value.value = fmt(vec[key]);
+    slider.addEventListener('input', function () {
+      vec[key] = parseFloat(slider.value);
+      value.value = fmt(vec[key]);
+      onChange();
+    });
+    value.addEventListener('change', function () {
+      const parsed = parseFloat(value.value);
+      if (!isNaN(parsed)) {
+        vec[key] = Math.max(-5, Math.min(5, parsed));
+        slider.value = String(vec[key]);
+      }
+      value.value = fmt(vec[key]);
+      onChange();
+    });
+    return { slider: slider, value: value };
+  }
+  bindComponent('axSlider', 'axValue', A, 'x', render);
+  bindComponent('aySlider', 'ayValue', A, 'y', render);
+  bindComponent('azSlider', 'azValue', A, 'z', render);
+  bindComponent('bxSlider', 'bxValue', B, 'x', render);
+  bindComponent('bySlider', 'byValue', B, 'y', render);
+  bindComponent('bzSlider', 'bzValue', B, 'z', render);
+
+  // ============ ORBIT CONTROLS ============
+  let dragging = false, lastX = 0, lastY = 0;
+  function pointerDown(x, y) { dragging = true; lastX = x; lastY = y; sceneWrap.classList.add('dragging'); }
+  function pointerMove(x, y) {
+    if (!dragging) return;
+    const dx = x - lastX, dy = y - lastY;
+    lastX = x; lastY = y;
+    yaw += dx * 0.008;
+    pitch += dy * 0.008;
+    pitch = Math.max(-1.45, Math.min(1.45, pitch));
+    render();
+  }
+  function pointerUp() { dragging = false; sceneWrap.classList.remove('dragging'); }
+
+  sceneWrap.addEventListener('mousedown', function (e) { pointerDown(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', function (e) { pointerMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', pointerUp);
+  sceneWrap.addEventListener('touchstart', function (e) { const t = e.touches[0]; pointerDown(t.clientX, t.clientY); }, { passive: true });
+  sceneWrap.addEventListener('touchmove', function (e) { const t = e.touches[0]; pointerMove(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  sceneWrap.addEventListener('touchend', pointerUp);
+  sceneWrap.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    viewScale *= (1 - e.deltaY * 0.001);
+    viewScale = Math.max(12, Math.min(90, viewScale));
+    render();
+  }, { passive: false });
+
+  resetViewBtn.addEventListener('click', function () {
+    yaw = DEFAULT_YAW; pitch = DEFAULT_PITCH; viewScale = DEFAULT_SCALE;
+    render();
+  });
+
+  // ============ CANVAS SIZING ============
+  function resizeCanvas() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ============ DRAWING ============
+  function css(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  function toScreen(p, w, h) {
+    const r = rotatePoint(p, yaw, pitch);
+    return projectPoint(r, { focal: FOCAL, scale: viewScale, cx: w / 2, cy: h / 2 });
+  }
+
+  function drawLine(p1, p2, w, h, color, width, dash) {
+    const s1 = toScreen(p1, w, h), s2 = toScreen(p2, w, h);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width || 2;
+    ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrow(from, to, w, h, color, label) {
+    const s1 = toScreen(from, w, h), s2 = toScreen(to, w, h);
+    drawLine(from, to, w, h, color, 3);
+    const dx = s2.x - s1.x, dy = s2.y - s1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const headLen = 13, headWidth = 6.5;
+    const bx = s2.x - ux * headLen, by = s2.y - uy * headLen;
+    const px = -uy, py = ux;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(s2.x, s2.y);
+    ctx.lineTo(bx + px * headWidth, by + py * headWidth);
+    ctx.lineTo(bx - px * headWidth, by - py * headWidth);
+    ctx.closePath();
+    ctx.fill();
+    if (label) {
+      ctx.font = '700 14px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillText(label, s2.x + 9, s2.y - 7);
+    }
+    ctx.restore();
+  }
+
+  function drawGrid(w, h) {
+    const N = 5;
+    const gridColor = 'rgba(91, 74, 150, 0.35)';
+    for (let i = -N; i <= N; i++) {
+      drawLine({ x: i, y: 0, z: -N }, { x: i, y: 0, z: N }, w, h, gridColor, 1);
+      drawLine({ x: -N, y: 0, z: i }, { x: N, y: 0, z: i }, w, h, gridColor, 1);
+    }
+  }
+
+  function drawAxes(w, h) {
+    const axisColor = css('--ink-faint') || '#7B6FA6';
+    drawLine({ x: -5, y: 0, z: 0 }, { x: 5, y: 0, z: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: -5, z: 0 }, { x: 0, y: 5, z: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: 0, z: -5 }, { x: 0, y: 0, z: 5 }, w, h, axisColor, 1.5);
+    ctx.save();
+    ctx.fillStyle = axisColor;
+    ctx.font = '700 12px ' + getComputedStyle(document.body).fontFamily;
+    [[{ x: 5.4, y: 0, z: 0 }, 'X'], [{ x: 0, y: 5.4, z: 0 }, 'Y'], [{ x: 0, y: 0, z: 5.4 }, 'Z']].forEach(function (pair) {
+      const s = toScreen(pair[0], w, h);
+      ctx.fillText(pair[1], s.x - 4, s.y + 4);
+    });
+    ctx.restore();
+  }
+
+  function drawParallelogram(w, h) {
+    const corners = [O, A, addV(A, B), B].map(function (p) { return toScreen(p, w, h); });
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255, 216, 77, 0.16)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 216, 77, 0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDotViz(w, h) {
+    const d = dot(A, B);
+    const proj = projectionPoint(A, B);
+    const positive = d > 1e-6, negative = d < -1e-6;
+    const shadowColor = positive ? css('--positive') : negative ? css('--danger') : css('--ink-faint');
+    drawLine(A, proj, w, h, css('--ink-soft'), 1.5, [4, 4]);
+    drawLine(O, proj, w, h, shadowColor, 4.5);
+    const sp = toScreen(proj, w, h);
+    ctx.save();
+    ctx.fillStyle = shadowColor;
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCrossResultArrow(w, h) {
+    const C = cross(A, B);
+    if (length(C) > 1e-6) {
+      drawArrow(O, C, w, h, css('--gold'), 'A×B');
+    }
+  }
+
+  function render() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    drawGrid(w, h);
+    drawAxes(w, h);
+    // parallelogram fill sits behind the vectors (a backdrop, not an overlay);
+    // the shadow/result annotations draw AFTER the vectors so they're never
+    // hidden underneath a vector arrow they happen to run parallel to.
+    if (mode === 'cross') drawParallelogram(w, h);
+    drawArrow(O, A, w, h, css('--cyan'), 'A');
+    drawArrow(O, B, w, h, css('--accent'), 'B');
+    if (mode === 'dot') drawDotViz(w, h);
+    if (mode === 'cross') drawCrossResultArrow(w, h);
+    updateReadouts();
+  }
+
+  // ============ READOUTS ============
+  function updateReadouts() {
+    const lA = length(A), lB = length(B);
+    magA.textContent = '|A|=' + fmt(lA);
+    magB.textContent = '|B|=' + fmt(lB);
+    roMagA.textContent = fmt(lA);
+    roMagB.textContent = fmt(lB);
+
+    const theta = angleBetween(A, B);
+    roAngle.textContent = theta === null ? '—' : fmt(theta * 180 / Math.PI, 1) + '°';
+
+    if (mode === 'dot') {
+      const d = dot(A, B);
+      const shadow = scalarProjection(A, B);
+      resultLabel.textContent = 'A · B';
+      resultValue.textContent = fmt(d);
+      resultValue.className = 'rb-value mono ' + (d > 1e-6 ? 'accent-positive' : d < -1e-6 ? 'accent-danger' : '');
+      roExtraWrap.style.display = 'flex';
+      roExtraLabel.textContent = "Shadow length (A's, on B)";
+      roExtra.textContent = fmt(shadow);
+      explainText.innerHTML = 'The dot product measures how much <strong style="color:var(--cyan)">A</strong> points in the direction of <strong style="color:var(--accent)">B</strong> &mdash; literally the length of the shadow A casts onto B’s line, times |B|. Same direction: long positive shadow. Perpendicular: no shadow, zero. Opposite directions: the shadow falls behind the origin, and the dot product goes negative.';
+    } else {
+      const C = cross(A, B);
+      const magC = length(C);
+      resultLabel.textContent = 'A × B';
+      resultValue.textContent = fmtVec(C);
+      resultValue.className = 'rb-value mono accent-gold';
+      roExtraWrap.style.display = 'flex';
+      roExtraLabel.textContent = '|A×B| (parallelogram area)';
+      roExtra.textContent = fmt(magC);
+      explainText.innerHTML = 'The cross product makes a <strong style="color:var(--gold)">new vector</strong>, perpendicular to both A and B, pointing out of the plane they define &mdash; curl your right hand’s fingers from A toward B and your thumb points along A×B. Its length equals the area of the parallelogram A and B span. Rotate the scene to check: the gold vector really is perpendicular to both.';
+    }
+  }
+
+  updateModeChips();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
