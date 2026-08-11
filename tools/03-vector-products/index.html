@@ -706,20 +706,66 @@
     ctx.restore();
   }
 
+  // Drawn BEFORE the vector arrows: B's whole line rendered as a glowing, sunlit
+  // rail -- like the dial-face of a sundial. A dark background can't show a dark
+  // shadow against itself, so instead of making the shadow dark-on-dark, this
+  // makes everything BUT the shadow bright, and lets the shadow read as the
+  // absence of that glow. The rail spans past both O and B's tip (and past the
+  // projection point, whichever side it lands on) so it always has somewhere to
+  // show a gap, even when the dot product is negative and the shadow falls
+  // behind the origin.
+  function drawDotRail(w, h) {
+    const lb2 = dot(B, B);
+    if (lb2 < 1e-9) return; // B is the zero vector -- no line to light up
+    const tProj = dot(A, B) / lb2;
+    const tLo = Math.min(0, 1, tProj) - 0.4;
+    const tHi = Math.max(0, 1, tProj) + 0.4;
+    const s1 = toScreen(scaleV(B, tLo), w, h);
+    const s2 = toScreen(scaleV(B, tHi), w, h);
+    const gold = css('--gold') || '#FFD84D';
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    // soft outer glow
+    ctx.strokeStyle = 'rgba(255, 216, 77, 0.4)';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = gold;
+    ctx.shadowBlur = 13;
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.stroke();
+    // bright sunlit core
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255, 246, 214, 0.95)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawDotViz(w, h, animT) {
     const d = dot(A, B);
     const proj = projectionPoint(A, B);
     const positive = d > 1e-6, negative = d < -1e-6;
     const shadowColor = positive ? css('--positive') : negative ? css('--danger') : css('--ink-faint');
+    // a dark, faintly sign-tinted version of shadowColor -- dim enough to read
+    // as an actual shadow (not a highlight), with just enough color left to
+    // hint positive/negative on close inspection; the landing marker and the
+    // readouts below carry the rest of that signal
+    const shadowFill = positive ? 'rgba(22, 46, 32, 0.94)' : negative ? 'rgba(48, 22, 18, 0.94)' : 'rgba(11, 10, 24, 0.94)';
 
-    // the shadow itself: bold segment from the origin to where A's light lands on B
-    drawLine(O, proj, w, h, shadowColor, 4.5);
+    // the shadow itself: a dark gap punched through the lit rail, from the
+    // origin to where A's tip blocks the light and casts onto B
+    drawLine(O, proj, w, h, shadowFill, 8, undefined, undefined);
 
     // soft dark mark where the shadow actually lands
     const sp = toScreen(proj, w, h);
     ctx.save();
     const shadowGrad = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, 11);
-    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.5)');
+    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.6)');
     shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = shadowGrad;
     ctx.beginPath();
@@ -809,10 +855,12 @@
     ctx.clearRect(0, 0, w, h);
     drawGrid(w, h);
     drawAxes(w, h);
-    // parallelogram fill sits behind the vectors (a backdrop, not an overlay);
-    // the shadow/result annotations draw AFTER the vectors so they're never
-    // hidden underneath a vector arrow they happen to run parallel to.
+    // parallelogram fill and the lit rail sit behind the vectors (a backdrop,
+    // not an overlay); the shadow/result annotations draw AFTER the vectors so
+    // they're never hidden underneath a vector arrow they happen to run
+    // parallel to.
     if (mode === 'cross') drawParallelogram(w, h);
+    if (mode === 'dot') drawDotRail(w, h);
     drawArrow(O, A, w, h, css('--cyan'), 'A');
     drawArrow(O, B, w, h, css('--accent'), 'B');
     if (mode === 'dot') drawDotViz(w, h, animT);
