@@ -369,6 +369,18 @@
     const t = dot(a, b) / lb2;
     return scaleV(b, t);
   }
+  // where the "sun" sits for the dot-product light/shadow viz: perpendicular to
+  // b, through a's tip, landing exactly at a's projection onto b. Returns null
+  // when a already lies on b's line (no gap to shine across).
+  function lightSourceFor(a, b) {
+    const proj = projectionPoint(a, b);
+    const gapVec = { x: a.x - proj.x, y: a.y - proj.y, z: a.z - proj.z };
+    const gapLen = length(gapVec);
+    if (gapLen <= 1e-4) return null;
+    const perpDir = scaleV(gapVec, 1 / gapLen);
+    const lightDist = Math.max(1.1, gapLen * 0.8);
+    return addV(a, scaleV(perpDir, lightDist));
+  }
 
   // ============ FORMATTING ============
   function fmt(n, decimals) {
@@ -410,6 +422,11 @@
   let viewScale = 34;
   const DEFAULT_YAW = 0.6, DEFAULT_PITCH = 0.32, DEFAULT_SCALE = 34, DEFAULT_ROLL = 0;
   const FOCAL = 420;
+  // MIN_SCALE has to be low enough that auto-fit can zoom out far enough for
+  // the largest vectors the sliders allow (a cross product can reach ~75 in
+  // magnitude at the corners of the +-5 range) -- shared with the scroll-wheel
+  // zoom so manual zoom never fights auto-fit by snapping back up to a higher floor.
+  const MIN_SCALE = 3, MAX_SCALE = 90;
 
   // ============ DOM ============
   const canvas = document.getElementById('scene');
@@ -504,13 +521,48 @@
   sceneWrap.addEventListener('wheel', function (e) {
     e.preventDefault();
     viewScale *= (1 - e.deltaY * 0.001);
-    viewScale = Math.max(12, Math.min(90, viewScale));
+    viewScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, viewScale));
     render();
   }, { passive: false });
 
+  // ============ AUTO-FIT ZOOM ============
+  // The points that need to stay on screen, in world space, for the current
+  // mode -- what "Overhead view" and "Reset view" both zoom to fit.
+  function fitPointsForMode() {
+    if (mode === 'cross') return [A, B, addV(A, B), cross(A, B)];
+    const pts = [A, B, projectionPoint(A, B)];
+    const light = lightSourceFor(A, B);
+    if (light) pts.push(light);
+    return pts;
+  }
+
+  // Largest viewScale that keeps every point in `points` inside the canvas,
+  // for a given camera orientation -- projects each at scale=1 to find its
+  // screen offset from center, then solves for the scale that brings the
+  // farthest offset just inside the margin. The margin is a fixed pixel
+  // amount (not a fraction of the canvas) because what it needs to clear --
+  // arrowheads, vector labels, the sun's glow -- doesn't shrink with the view.
+  function computeFitScale(points, fitYaw, fitPitch, fitRoll) {
+    const rect = sceneWrap.getBoundingClientRect();
+    const margin = 46;
+    const maxHalfW = Math.max(20, rect.width / 2 - margin);
+    const maxHalfH = Math.max(20, rect.height / 2 - margin);
+    let minScale = Infinity;
+    points.forEach(function (p) {
+      const r = rotatePoint(p, fitYaw, fitPitch, fitRoll);
+      const f = FOCAL / (FOCAL + r.z);
+      const ox = Math.abs(r.x * f), oy = Math.abs(r.y * f);
+      if (ox > 1e-6) minScale = Math.min(minScale, maxHalfW / ox);
+      if (oy > 1e-6) minScale = Math.min(minScale, maxHalfH / oy);
+    });
+    if (!isFinite(minScale)) return DEFAULT_SCALE;
+    return Math.max(MIN_SCALE, Math.min(MAX_SCALE, minScale));
+  }
+
   resetViewBtn.addEventListener('click', function () {
     viewTween = null;
-    yaw = DEFAULT_YAW; pitch = DEFAULT_PITCH; viewScale = DEFAULT_SCALE; roll = DEFAULT_ROLL;
+    yaw = DEFAULT_YAW; pitch = DEFAULT_PITCH; roll = DEFAULT_ROLL;
+    viewScale = computeFitScale(fitPointsForMode(), DEFAULT_YAW, DEFAULT_PITCH, DEFAULT_ROLL);
     render();
   });
 
@@ -551,9 +603,7 @@
     const nLen = length(n);
     if (nLen < 1e-6) return null; // A and B are parallel (or one is zero) -- no defined plane
 
-    const proj = projectionPoint(A, B);
-    const gapVec = { x: A.x - proj.x, y: A.y - proj.y, z: A.z - proj.z };
-    const gapLen = length(gapVec);
+    const light = lightSourceFor(A, B);
 
     let best = null;
     [n, scaleV(n, -1)].forEach(function (v) {
@@ -571,26 +621,22 @@
         const targetRoll = -bAngle + flip;
         // where would the light source land with this candidate view? (higher
         // on screen = larger rotated p.y, since projectPoint flips y for canvas)
-        let upScore = -Infinity;
-        if (gapLen > 1e-4) {
-          const perpDir = scaleV(gapVec, 1 / gapLen);
-          const lightPos = addV(A, scaleV(perpDir, Math.max(1.1, gapLen * 0.8)));
-          upScore = rotatePoint(lightPos, baseYaw, basePitch, targetRoll).y;
-        }
+        const upScore = light ? rotatePoint(light, baseYaw, basePitch, targetRoll).y : -Infinity;
         if (best === null || upScore > best.upScore) {
           best = { yaw: baseYaw, pitch: basePitch, roll: targetRoll, upScore: upScore };
         }
       });
     });
+    best.scale = computeFitScale(fitPointsForMode(), best.yaw, best.pitch, best.roll);
     return best;
   }
 
-  function tweenViewTo(targetYaw, targetPitch, targetRoll, duration) {
+  function tweenViewTo(targetYaw, targetPitch, targetRoll, targetScale, duration) {
     const dYaw = shortestDeltaAngle(yaw, targetYaw);
     const dRoll = shortestDeltaAngle(roll, targetRoll);
     viewTween = {
-      fromYaw: yaw, fromPitch: pitch, fromRoll: roll,
-      toYaw: yaw + dYaw, toPitch: targetPitch, toRoll: roll + dRoll,
+      fromYaw: yaw, fromPitch: pitch, fromRoll: roll, fromScale: viewScale,
+      toYaw: yaw + dYaw, toPitch: targetPitch, toRoll: roll + dRoll, toScale: targetScale,
       start: null, duration: duration,
     };
   }
@@ -600,10 +646,10 @@
     if (!target) return; // A and B are parallel right now -- no plane to flatten to
     if (reduceMotion) {
       viewTween = null;
-      yaw = target.yaw; pitch = target.pitch; roll = target.roll;
+      yaw = target.yaw; pitch = target.pitch; roll = target.roll; viewScale = target.scale;
       render();
     } else {
-      tweenViewTo(target.yaw, target.pitch, target.roll, 700);
+      tweenViewTo(target.yaw, target.pitch, target.roll, target.scale, 700);
     }
   });
 
@@ -776,12 +822,8 @@
     // the light itself: parallel rays perpendicular to B, grazing A's tip and
     // landing at proj. The light source, A, and proj are exactly collinear --
     // that line's direction IS "perpendicular to B", by construction of proj.
-    const gapVec = { x: A.x - proj.x, y: A.y - proj.y, z: A.z - proj.z };
-    const gapLen = length(gapVec);
-    if (gapLen > 1e-4) {
-      const perpDir = scaleV(gapVec, 1 / gapLen);
-      const lightDist = Math.max(1.1, gapLen * 0.8);
-      const lightPos = addV(A, scaleV(perpDir, lightDist));
+    const lightPos = lightSourceFor(A, B);
+    if (lightPos) {
       const gold = css('--gold');
       const dashOffset = animT === undefined ? 0 : -animT * 26;
 
@@ -890,6 +932,7 @@
       yaw = viewTween.fromYaw + (viewTween.toYaw - viewTween.fromYaw) * e;
       pitch = viewTween.fromPitch + (viewTween.toPitch - viewTween.fromPitch) * e;
       roll = viewTween.fromRoll + (viewTween.toRoll - viewTween.fromRoll) * e;
+      viewScale = viewTween.fromScale + (viewTween.toScale - viewTween.fromScale) * e;
       if (t >= 1) viewTween = null;
     }
     drawScene((ts - animStart) / 1000);
