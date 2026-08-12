@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vector Addition Lab</title>
-<meta name="description" content="See how vector components add together to build a resultant vector — drag magnitude/angle sliders, watch the x and y components sum, and slide B tip-to-tail onto A." />
+<meta name="description" content="See how vector components add together to build a resultant vector, in 2D, in 3D, and broken into i-j-k notation — drag magnitude/angle or x/y/z, and watch the components sum." />
 <style>
   :root {
     --bg: #0B0A18;
@@ -105,7 +105,7 @@
 
   button { font-family: inherit; cursor: pointer; }
 
-  /* ---------- mode switcher ---------- */
+  /* ---------- mode switchers ---------- */
   .mode-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
   .chip {
     background: var(--surface-2);
@@ -123,7 +123,7 @@
   .chip:hover { border-color: var(--accent); color: var(--accent); }
   .chip:active { transform: translate(3px, 3px); box-shadow: none; }
   .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
-  .chip-sep { width: 2px; align-self: stretch; background: var(--line-bright); margin: 0 0.15rem; }
+  .chip.chip-view.is-active { background: var(--cyan); color: var(--bg); }
 
   /* ---------- viewport ---------- */
   .viewport-panel { padding: 0.9rem; }
@@ -162,7 +162,10 @@
     background: var(--bg);
     border: 2px solid var(--line-bright);
     overflow: hidden;
+    touch-action: none;
   }
+  .scene-wrap.orbitable { cursor: grab; }
+  .scene-wrap.orbitable.dragging { cursor: grabbing; }
   .scene-wrap canvas { display: block; width: 100%; height: 100%; }
 
   /* ---------- vector controls ---------- */
@@ -222,6 +225,7 @@
   .comp-derived {
     display: flex;
     gap: 1.1rem;
+    flex-wrap: wrap;
     margin-top: 0.75rem;
     padding-top: 0.7rem;
     border-top: 1px dashed var(--line-bright);
@@ -238,9 +242,10 @@
     gap: 1.4rem;
     margin-bottom: 1.1rem;
   }
-  .ledger-col { }
+  .ledger-cols.ledger-cols-3 { grid-template-columns: 1fr 1fr 1fr; }
   .ledger-col-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.5rem; }
   .ledger-rows { font-size: 1.15rem; }
+  .ledger-cols-3 .ledger-rows { font-size: 1rem; }
   .ledger-row { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.2rem 0; }
   .ledger-row .lr-tag { flex: none; width: 1.6rem; color: var(--ink-faint); font-size: 0.85rem; }
   .ledger-row .lr-val { flex: 1; text-align: right; font-weight: 700; }
@@ -248,6 +253,7 @@
   .ledger-row.lr-b .lr-val { color: var(--accent); }
   .ledger-rule { border: none; border-top: 2px solid var(--line-bright); margin: 0.25rem 0; }
   .ledger-row.lr-r .lr-val { color: var(--gold); font-size: 1.3rem; }
+  .ledger-cols-3 .ledger-row.lr-r .lr-val { font-size: 1.1rem; }
 
   .result-banner {
     padding: 0.9rem 1.1rem;
@@ -257,6 +263,21 @@
   }
   .result-banner .rb-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.35rem; }
   .result-banner .rb-value { font-size: 1.6rem; font-weight: 700; color: var(--gold); text-shadow: 2px 2px 0 var(--shadow-color); }
+
+  /* ---------- ijk notation panel ---------- */
+  .ijk-target-note { font-size: 0.78rem; color: var(--ink-faint); margin-bottom: 0.9rem; }
+  .ijk-notation {
+    padding: 1.1rem 1.1rem;
+    border: 2px dashed var(--line-bright);
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+  .ijk-notation .in-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.5rem; }
+  .ijk-notation .in-value { font-size: 1.35rem; font-weight: 700; }
+  .ijk-notation .in-mag { margin-top: 0.5rem; font-size: 0.9rem; color: var(--ink-soft); }
+  .ijk-term-i { color: var(--cyan); }
+  .ijk-term-j { color: var(--gold); }
+  .ijk-term-k { color: var(--accent); }
 
   .explain-text { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; }
   .explain-text strong { color: var(--ink); }
@@ -279,7 +300,7 @@
   @media (max-width: 640px) {
     header.masthead h1 { font-size: 1.6rem; }
     .vectors-row { grid-template-columns: 1fr; }
-    .ledger-cols { grid-template-columns: 1fr; }
+    .ledger-cols, .ledger-cols.ledger-cols-3 { grid-template-columns: 1fr; }
     .result-banner .rb-value { font-size: 1.3rem; }
   }
 </style>
@@ -290,15 +311,18 @@
   <header class="masthead">
     <div class="eyebrow">Vectors &middot; Component Addition</div>
     <h1>Vector Addition Lab</h1>
-    <p>Every vector breaks into an x-part and a y-part. Adding two vectors is just adding those parts separately &mdash; drag magnitude and angle, and watch A and B's components sum into the resultant, both in the numbers and on the graph.</p>
+    <p id="introText">Every vector breaks into an x-part and a y-part. Adding two vectors is just adding those parts separately &mdash; drag magnitude and angle, and watch A and B's components sum into the resultant, both in the numbers and on the graph.</p>
   </header>
 
+  <div class="mode-chips" id="viewChips" role="group" aria-label="2D, 3D, or unit-vector view"></div>
   <div class="mode-chips" id="placementChips" role="group" aria-label="How to draw vector B"></div>
+  <div class="mode-chips" id="decomposeChips" role="group" aria-label="Which vector to decompose" style="display:none;"></div>
 
-  <section class="viewport-panel panel-8bit" aria-label="2D vector diagram">
+  <section class="viewport-panel panel-8bit" aria-label="Vector diagram">
     <div class="viewport-toolbar">
-      <div class="viewport-hint">B's own arrow never changes &mdash; only where you start drawing it from</div>
+      <div class="viewport-hint" id="viewportHint">B's own arrow never changes &mdash; only where you start drawing it from</div>
       <div class="viewport-actions">
+        <button class="btn-ghost" id="resetViewBtn" type="button" style="display:none;">&#8635; Reset view</button>
         <button class="btn-ghost" id="parallelogramBtn" type="button" aria-pressed="false" title="Also draw the A-then-B and B-then-A paths together, showing they land on the same resultant">&#9635; Show parallelogram</button>
       </div>
     </div>
@@ -313,22 +337,36 @@
         <span class="vector-name" style="color:var(--cyan);">Vector A</span>
         <span class="vector-comps mono" id="compsA"></span>
       </div>
-      <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="aMagSlider" style="--thumb-color:var(--cyan);" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="aMagValue" /></div>
-      <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="aAngleSlider" style="--thumb-color:var(--cyan);" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="aAngleValue" /></div>
-      <div class="comp-derived"><span>A<sub>x</sub> = <b id="axOut">&mdash;</b></span><span>A<sub>y</sub> = <b id="ayOut">&mdash;</b></span></div>
+      <div id="aPolarInputs">
+        <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="aMagSlider" style="--thumb-color:var(--cyan);" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="aMagValue" /></div>
+        <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="aAngleSlider" style="--thumb-color:var(--cyan);" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="aAngleValue" /></div>
+      </div>
+      <div id="aCartInputs" style="display:none;">
+        <div class="comp-row"><span class="comp-label">x</span><input type="range" class="comp-slider" id="a3xSlider" style="--thumb-color:var(--cyan);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="a3xValue" /></div>
+        <div class="comp-row"><span class="comp-label">y</span><input type="range" class="comp-slider" id="a3ySlider" style="--thumb-color:var(--cyan);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="a3yValue" /></div>
+        <div class="comp-row"><span class="comp-label">z</span><input type="range" class="comp-slider" id="a3zSlider" style="--thumb-color:var(--cyan);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="a3zValue" /></div>
+      </div>
+      <div class="comp-derived" id="aDerived"></div>
     </div>
     <div class="vector-card panel-8bit">
       <div class="vector-card-head">
         <span class="vector-name" style="color:var(--accent);">Vector B</span>
         <span class="vector-comps mono" id="compsB"></span>
       </div>
-      <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="bMagSlider" style="--thumb-color:var(--accent);" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="bMagValue" /></div>
-      <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="bAngleSlider" style="--thumb-color:var(--accent);" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="bAngleValue" /></div>
-      <div class="comp-derived"><span>B<sub>x</sub> = <b id="bxOut">&mdash;</b></span><span>B<sub>y</sub> = <b id="byOut">&mdash;</b></span></div>
+      <div id="bPolarInputs">
+        <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="bMagSlider" style="--thumb-color:var(--accent);" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="bMagValue" /></div>
+        <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="bAngleSlider" style="--thumb-color:var(--accent);" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="bAngleValue" /></div>
+      </div>
+      <div id="bCartInputs" style="display:none;">
+        <div class="comp-row"><span class="comp-label">x</span><input type="range" class="comp-slider" id="b3xSlider" style="--thumb-color:var(--accent);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="b3xValue" /></div>
+        <div class="comp-row"><span class="comp-label">y</span><input type="range" class="comp-slider" id="b3ySlider" style="--thumb-color:var(--accent);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="b3yValue" /></div>
+        <div class="comp-row"><span class="comp-label">z</span><input type="range" class="comp-slider" id="b3zSlider" style="--thumb-color:var(--accent);" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="b3zValue" /></div>
+      </div>
+      <div class="comp-derived" id="bDerived"></div>
     </div>
   </section>
 
-  <section class="ledger-panel panel-8bit" aria-label="Component addition">
+  <section class="ledger-panel panel-8bit" aria-label="Component addition" id="ledger2D">
     <div class="ledger-cols">
       <div class="ledger-col">
         <div class="ledger-col-label">X components</div>
@@ -356,6 +394,53 @@
     <p class="explain-text" id="explainText"></p>
   </section>
 
+  <section class="ledger-panel panel-8bit" aria-label="3D component addition" id="ledger3D" style="display:none;">
+    <div class="ledger-cols ledger-cols-3">
+      <div class="ledger-col">
+        <div class="ledger-col-label">X components</div>
+        <div class="ledger-rows mono">
+          <div class="ledger-row lr-a"><span class="lr-tag">A<sub>x</sub></span><span class="lr-val" id="ledger3Ax">&mdash;</span></div>
+          <div class="ledger-row lr-b"><span class="lr-tag">+B<sub>x</sub></span><span class="lr-val" id="ledger3Bx">&mdash;</span></div>
+          <hr class="ledger-rule" />
+          <div class="ledger-row lr-r"><span class="lr-tag">R<sub>x</sub></span><span class="lr-val" id="ledger3Rx">&mdash;</span></div>
+        </div>
+      </div>
+      <div class="ledger-col">
+        <div class="ledger-col-label">Y components</div>
+        <div class="ledger-rows mono">
+          <div class="ledger-row lr-a"><span class="lr-tag">A<sub>y</sub></span><span class="lr-val" id="ledger3Ay">&mdash;</span></div>
+          <div class="ledger-row lr-b"><span class="lr-tag">+B<sub>y</sub></span><span class="lr-val" id="ledger3By">&mdash;</span></div>
+          <hr class="ledger-rule" />
+          <div class="ledger-row lr-r"><span class="lr-tag">R<sub>y</sub></span><span class="lr-val" id="ledger3Ry">&mdash;</span></div>
+        </div>
+      </div>
+      <div class="ledger-col">
+        <div class="ledger-col-label">Z components</div>
+        <div class="ledger-rows mono">
+          <div class="ledger-row lr-a"><span class="lr-tag">A<sub>z</sub></span><span class="lr-val" id="ledger3Az">&mdash;</span></div>
+          <div class="ledger-row lr-b"><span class="lr-tag">+B<sub>z</sub></span><span class="lr-val" id="ledger3Bz">&mdash;</span></div>
+          <hr class="ledger-rule" />
+          <div class="ledger-row lr-r"><span class="lr-tag">R<sub>z</sub></span><span class="lr-val" id="ledger3Rz">&mdash;</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="result-banner">
+      <div class="rb-label">R = A + B</div>
+      <div class="rb-value mono" id="resultValue3D">&mdash;</div>
+    </div>
+    <p class="explain-text" id="explainText3D"></p>
+  </section>
+
+  <section class="ledger-panel panel-8bit" aria-label="i, j, k decomposition" id="ledgerIjk" style="display:none;">
+    <p class="ijk-target-note" id="ijkTargetNote"></p>
+    <div class="ijk-notation">
+      <div class="in-label">Written in unit-vector notation</div>
+      <div class="in-value mono" id="ijkNotation">&mdash;</div>
+      <div class="in-mag mono" id="ijkMagnitude"></div>
+    </div>
+    <p class="explain-text" id="explainTextIjk"></p>
+  </section>
+
   <footer>Drag either vector &mdash; the resultant never lies, it's just addition</footer>
 </div>
 
@@ -363,15 +448,45 @@
 (function () {
   "use strict";
 
-  // ============ MATH ============
-  function comps(v) {
+  // ============ MATH: 2D ============
+  function comps2(v) {
     const r = (v.angle * Math.PI) / 180;
     return { x: v.mag * Math.cos(r), y: v.mag * Math.sin(r) };
   }
   function normalizeDeg(d) { let x = d % 360; if (x < 0) x += 360; return x; }
-  function addV(a, b) { return { x: a.x + b.x, y: a.y + b.y }; }
-  function lerp(a, b, t) { return a + (b - a) * t; }
+  function addV2(a, b) { return { x: a.x + b.x, y: a.y + b.y }; }
 
+  // ============ MATH: 3D ============
+  function dot3(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+  function length3(a) { return Math.sqrt(dot3(a, a)); }
+  function addV3(a, b) { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+  function scaleV3(a, s) { return { x: a.x * s, y: a.y * s, z: a.z * s }; }
+  function rotatePoint(p, yaw, pitch) {
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const x1 = p.x * cy + p.z * sy;
+    const z1 = -p.x * sy + p.z * cy;
+    const y1 = p.y;
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const y2 = y1 * cp - z1 * sp;
+    const z2 = y1 * sp + z1 * cp;
+    return { x: x1, y: y2, z: z2 };
+  }
+  function projectPoint(p, opts) {
+    const denom = opts.focal + p.z;
+    const f = denom !== 0 ? opts.focal / denom : opts.focal;
+    return { x: opts.cx + p.x * f * opts.scale, y: opts.cy - p.y * f * opts.scale, depth: p.z };
+  }
+  // origin -> (cx,0,0) -> (cx,cy,0) -> (cx,cy,cz)=tip -- the "walk" that
+  // builds a vector one axis at a time. Doubles as the faint component-drop
+  // in the 3D tab and the bold primary picture in the i-j-k tab.
+  function axisWalk3(origin, c) {
+    const p1 = { x: origin.x + c.x, y: origin.y, z: origin.z };
+    const p2 = { x: origin.x + c.x, y: origin.y + c.y, z: origin.z };
+    const p3 = { x: origin.x + c.x, y: origin.y + c.y, z: origin.z + c.z };
+    return [origin, p1, p2, p3];
+  }
+
+  // ============ FORMATTING ============
   function fmt(n, decimals) {
     if (!isFinite(n)) return '0';
     const d = decimals === undefined ? 2 : decimals;
@@ -383,35 +498,129 @@
     const s = fmt(Math.abs(n), decimals);
     return (n < -1e-9 ? '−' : '') + s;
   }
+  function fmtTerm(n, symbolHtml) {
+    // "4.00i" / "-3.00j" -- a signed coefficient immediately followed by its
+    // unit vector, for building "A = ... + ... + ..." notation strings
+    return (n < -1e-9 ? '−' : '') + fmt(Math.abs(n)) + symbolHtml;
+  }
 
   // ============ STATE ============
-  const O = { x: 0, y: 0 };
-  let A = { mag: 6, angle: 35 };
-  let B = { mag: 5, angle: 150 };
-  let tipToTail = true;        // where B's arrow is drawn FROM: A's tip, or the origin
+  const O2 = { x: 0, y: 0 };
+  const O3 = { x: 0, y: 0, z: 0 };
+  let view = '2d'; // '2d' | '3d' | 'ijk'
+  let A2 = { mag: 6, angle: 35 };
+  let B2 = { mag: 5, angle: 150 };
+  let A3 = { x: 4, y: 3, z: 2 };
+  let B3 = { x: 2, y: -3, z: 4 };
+  let tipToTail = true;         // where B's arrow is drawn FROM: A's tip, or the origin
   let showParallelogram = false;
+  let decomposeTarget = 'A';    // 'A' | 'B' | 'R' -- which vector the i-j-k tab breaks down
 
   // ============ DOM ============
   const canvas = document.getElementById('scene');
   const ctx = canvas.getContext('2d');
   const sceneWrap = document.getElementById('sceneWrap');
+  const introText = document.getElementById('introText');
+  const viewChipsHost = document.getElementById('viewChips');
   const placementChipsHost = document.getElementById('placementChips');
+  const decomposeChipsHost = document.getElementById('decomposeChips');
+  const viewportHint = document.getElementById('viewportHint');
+  const resetViewBtn = document.getElementById('resetViewBtn');
   const parallelogramBtn = document.getElementById('parallelogramBtn');
+
+  const aPolarInputs = document.getElementById('aPolarInputs');
+  const aCartInputs = document.getElementById('aCartInputs');
+  const bPolarInputs = document.getElementById('bPolarInputs');
+  const bCartInputs = document.getElementById('bCartInputs');
   const compsA = document.getElementById('compsA');
   const compsB = document.getElementById('compsB');
-  const axOut = document.getElementById('axOut');
-  const ayOut = document.getElementById('ayOut');
-  const bxOut = document.getElementById('bxOut');
-  const byOut = document.getElementById('byOut');
-  const ledgerAx = document.getElementById('ledgerAx');
-  const ledgerBx = document.getElementById('ledgerBx');
-  const ledgerRx = document.getElementById('ledgerRx');
-  const ledgerAy = document.getElementById('ledgerAy');
-  const ledgerBy = document.getElementById('ledgerBy');
-  const ledgerRy = document.getElementById('ledgerRy');
+  const aDerived = document.getElementById('aDerived');
+  const bDerived = document.getElementById('bDerived');
+
+  const ledger2D = document.getElementById('ledger2D');
+  const ledger3D = document.getElementById('ledger3D');
+  const ledgerIjk = document.getElementById('ledgerIjk');
+  const ledgerAx = document.getElementById('ledgerAx'), ledgerBx = document.getElementById('ledgerBx'), ledgerRx = document.getElementById('ledgerRx');
+  const ledgerAy = document.getElementById('ledgerAy'), ledgerBy = document.getElementById('ledgerBy'), ledgerRy = document.getElementById('ledgerRy');
   const resultValue = document.getElementById('resultValue');
   const explainText = document.getElementById('explainText');
+  const ledger3Ax = document.getElementById('ledger3Ax'), ledger3Bx = document.getElementById('ledger3Bx'), ledger3Rx = document.getElementById('ledger3Rx');
+  const ledger3Ay = document.getElementById('ledger3Ay'), ledger3By = document.getElementById('ledger3By'), ledger3Ry = document.getElementById('ledger3Ry');
+  const ledger3Az = document.getElementById('ledger3Az'), ledger3Bz = document.getElementById('ledger3Bz'), ledger3Rz = document.getElementById('ledger3Rz');
+  const resultValue3D = document.getElementById('resultValue3D');
+  const explainText3D = document.getElementById('explainText3D');
+  const ijkTargetNote = document.getElementById('ijkTargetNote');
+  const ijkNotation = document.getElementById('ijkNotation');
+  const ijkMagnitude = document.getElementById('ijkMagnitude');
+  const explainTextIjk = document.getElementById('explainTextIjk');
 
+  // ============ VIEW TABS ============
+  const VIEWS = [
+    { id: '2d', label: '2D' },
+    { id: '3d', label: '3D' },
+    { id: 'ijk', label: 'î ĵ k̂' },
+  ];
+  const viewChipEls = VIEWS.map(function (v) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip chip-view';
+    chip.textContent = v.label;
+    chip.addEventListener('click', function () { setView(v.id); });
+    viewChipsHost.appendChild(chip);
+    return chip;
+  });
+  function updateViewChips() {
+    viewChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', VIEWS[i].id === view); });
+  }
+
+  const VIEW_COPY = {
+    '2d': {
+      intro: "Every vector breaks into an x-part and a y-part. Adding two vectors is just adding those parts separately — drag magnitude and angle, and watch A and B's components sum into the resultant, both in the numbers and on the graph.",
+      hint: "B's own arrow never changes — only where you start drawing it from",
+    },
+    '3d': {
+      intro: "The same idea, one dimension up: every vector breaks into an x-, y-, and z-part. Drag to orbit the scene and drag each vector's x/y/z sliders — the resultant is still just adding components, now three columns instead of two.",
+      hint: "Drag to rotate — B's own arrow never changes, only where it starts",
+    },
+    'ijk': {
+      intro: "î, ĵ, and k̂ are the unit vectors along x, y, and z — each exactly length 1. Any vector is just its components times these: A = Axî + Ayĵ + Azk̂. Pick a vector below and watch it get built one unit vector at a time.",
+      hint: 'Drag to rotate — pick a vector to break into its î ĵ k̂ pieces',
+    },
+  };
+
+  function setView(v) {
+    if (v === view) return;
+    view = v;
+    updateViewChips();
+    updateUIForView();
+    render();
+  }
+
+  function updateUIForView() {
+    const is2D = view === '2d', is3D = view === '3d', isIjk = view === 'ijk';
+    const copy = VIEW_COPY[view];
+    introText.textContent = copy.intro;
+    viewportHint.textContent = copy.hint;
+
+    aPolarInputs.style.display = is2D ? '' : 'none';
+    aCartInputs.style.display = is2D ? 'none' : '';
+    bPolarInputs.style.display = is2D ? '' : 'none';
+    bCartInputs.style.display = is2D ? 'none' : '';
+
+    ledger2D.style.display = is2D ? '' : 'none';
+    ledger3D.style.display = is3D ? '' : 'none';
+    ledgerIjk.style.display = isIjk ? '' : 'none';
+
+    placementChipsHost.style.display = isIjk ? 'none' : '';
+    decomposeChipsHost.style.display = isIjk ? '' : 'none';
+
+    resetViewBtn.style.display = is2D ? 'none' : '';
+    parallelogramBtn.style.display = isIjk ? 'none' : '';
+
+    sceneWrap.classList.toggle('orbitable', !is2D);
+  }
+
+  // ============ "FROM ORIGIN" / "TIP-TO-TAIL" ============
   const PLACEMENTS = [
     { id: 'origin', label: 'From origin' },
     { id: 'tip', label: 'Tip-to-tail' },
@@ -441,15 +650,34 @@
     render();
   });
 
-  // ---- vector sliders ----
-  function bindComponent(sliderId, valueId, vec, key, min, max, onChange) {
+  // ============ "DECOMPOSE: A / B / R" (i-j-k tab) ============
+  const DECOMPOSE_TARGETS = [
+    { id: 'A', label: 'Decompose A' },
+    { id: 'B', label: 'Decompose B' },
+    { id: 'R', label: 'Decompose R' },
+  ];
+  const decomposeChipEls = DECOMPOSE_TARGETS.map(function (d) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = d.label;
+    chip.addEventListener('click', function () { decomposeTarget = d.id; updateDecomposeChips(); render(); });
+    decomposeChipsHost.appendChild(chip);
+    return chip;
+  });
+  function updateDecomposeChips() {
+    decomposeChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', DECOMPOSE_TARGETS[i].id === decomposeTarget); });
+  }
+
+  // ============ VECTOR SLIDERS ============
+  function bindComponent(sliderId, valueId, vec, key, min, max, decimals, onChange) {
     const slider = document.getElementById(sliderId);
     const value = document.getElementById(valueId);
     slider.value = String(vec[key]);
-    value.value = fmt(vec[key], key === 'angle' ? 0 : 2);
+    value.value = fmt(vec[key], decimals);
     slider.addEventListener('input', function () {
       vec[key] = parseFloat(slider.value);
-      value.value = fmt(vec[key], key === 'angle' ? 0 : 2);
+      value.value = fmt(vec[key], decimals);
       onChange();
     });
     value.addEventListener('change', function () {
@@ -458,20 +686,28 @@
         vec[key] = Math.max(min, Math.min(max, parsed));
         slider.value = String(vec[key]);
       }
-      value.value = fmt(vec[key], key === 'angle' ? 0 : 2);
+      value.value = fmt(vec[key], decimals);
       onChange();
     });
   }
-  bindComponent('aMagSlider', 'aMagValue', A, 'mag', 0, 8, render);
-  bindComponent('aAngleSlider', 'aAngleValue', A, 'angle', -720, 720, render);
-  bindComponent('bMagSlider', 'bMagValue', B, 'mag', 0, 8, render);
-  bindComponent('bAngleSlider', 'bAngleValue', B, 'angle', -720, 720, render);
+  bindComponent('aMagSlider', 'aMagValue', A2, 'mag', 0, 8, 2, render);
+  bindComponent('aAngleSlider', 'aAngleValue', A2, 'angle', -720, 720, 0, render);
+  bindComponent('bMagSlider', 'bMagValue', B2, 'mag', 0, 8, 2, render);
+  bindComponent('bAngleSlider', 'bAngleValue', B2, 'angle', -720, 720, 0, render);
+  bindComponent('a3xSlider', 'a3xValue', A3, 'x', -5, 5, 2, render);
+  bindComponent('a3ySlider', 'a3yValue', A3, 'y', -5, 5, 2, render);
+  bindComponent('a3zSlider', 'a3zValue', A3, 'z', -5, 5, 2, render);
+  bindComponent('b3xSlider', 'b3xValue', B3, 'x', -5, 5, 2, render);
+  bindComponent('b3ySlider', 'b3yValue', B3, 'y', -5, 5, 2, render);
+  bindComponent('b3zSlider', 'b3zValue', B3, 'z', -5, 5, 2, render);
 
   // ============ TIP-TO-TAIL SLIDE ANIMATION ============
   // B's own arrow (length + direction) never changes -- only its tail
   // position animates between the origin (tailAnim=0) and A's tip
   // (tailAnim=1), so the slide visibly proves "moving a vector doesn't
-  // change it" rather than just cutting between two static pictures.
+  // change it" rather than just cutting between two static pictures. Shared
+  // across the 2D and 3D tabs (whichever is active when it fires just
+  // reads the same progress value in its own dimensionality).
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let tailAnim = 1;
   let tailTween = null; // { from, to, start, duration }
@@ -508,6 +744,38 @@
     }
   }
 
+  // ============ 3D ORBIT CONTROLS ============
+  let yaw = 0.6, pitch = 0.32;
+  const DEFAULT_YAW = 0.6, DEFAULT_PITCH = 0.32;
+  const FOCAL = 420;
+  let dragging = false, lastX = 0, lastY = 0;
+  function pointerDown(x, y) {
+    if (view === '2d') return;
+    dragging = true; lastX = x; lastY = y;
+    sceneWrap.classList.add('dragging');
+  }
+  function pointerMove(x, y) {
+    if (!dragging) return;
+    const dx = x - lastX, dy = y - lastY;
+    lastX = x; lastY = y;
+    yaw += dx * 0.008;
+    pitch += dy * 0.008;
+    pitch = Math.max(-1.45, Math.min(1.45, pitch));
+    render();
+  }
+  function pointerUp() { dragging = false; sceneWrap.classList.remove('dragging'); }
+  sceneWrap.addEventListener('mousedown', function (e) { pointerDown(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', function (e) { pointerMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', pointerUp);
+  sceneWrap.addEventListener('touchstart', function (e) { const t = e.touches[0]; pointerDown(t.clientX, t.clientY); }, { passive: true });
+  sceneWrap.addEventListener('touchmove', function (e) { const t = e.touches[0]; pointerMove(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  sceneWrap.addEventListener('touchend', pointerUp);
+
+  resetViewBtn.addEventListener('click', function () {
+    yaw = DEFAULT_YAW; pitch = DEFAULT_PITCH;
+    render();
+  });
+
   // ============ CANVAS SIZING ============
   function resizeCanvas() {
     const rect = sceneWrap.getBoundingClientRect();
@@ -519,35 +787,59 @@
   }
   window.addEventListener('resize', resizeCanvas);
 
-  // ============ DRAWING ============
+  // ============ DRAWING: SHARED HELPERS ============
   function css(varName) {
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   }
 
-  // Fit-to-content: always frames O, A's tip, B's tip-from-origin, and R
-  // together, regardless of which placement is currently showing, so
-  // toggling or animating between them never jumps the zoom around.
-  const MARGIN_PX = 46, MIN_SPAN = 3, MIN_SCALE = 10, MAX_SCALE = 90;
-  let fit = { scale: 40, cx: 0, cy: 0 };
-  function computeFit(w, h) {
-    const Ac = comps(A), Bc = comps(B), R = addV(Ac, Bc);
-    const pts = [O, Ac, Bc, R];
+  // ---- 2D projection (fit-to-content: scale + pan, recomputed every frame) ----
+  const MARGIN_PX = 46, MIN_SPAN_2D = 3, MIN_SCALE_2D = 10, MAX_SCALE_2D = 90;
+  let fit2 = { scale: 40, cx: 0, cy: 0 };
+  function computeFit2D(w, h) {
+    const Ac = comps2(A2), Bc = comps2(B2), R = addV2(Ac, Bc);
+    const pts = [O2, Ac, Bc, R];
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     pts.forEach(function (p) {
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
       minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     });
-    const spanX = Math.max(MIN_SPAN, maxX - minX);
-    const spanY = Math.max(MIN_SPAN, maxY - minY);
+    const spanX = Math.max(MIN_SPAN_2D, maxX - minX);
+    const spanY = Math.max(MIN_SPAN_2D, maxY - minY);
     const availW = Math.max(20, w - MARGIN_PX * 2);
     const availH = Math.max(20, h - MARGIN_PX * 2);
     let scale = Math.min(availW / spanX, availH / spanY);
-    scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+    scale = Math.max(MIN_SCALE_2D, Math.min(MAX_SCALE_2D, scale));
     return { scale: scale, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
   }
-  function toScreen(p, w, h) {
-    return { x: w / 2 + (p.x - fit.cx) * fit.scale, y: h / 2 - (p.y - fit.cy) * fit.scale };
+  function toScreen2D(p, w, h) {
+    return { x: w / 2 + (p.x - fit2.cx) * fit2.scale, y: h / 2 - (p.y - fit2.cy) * fit2.scale };
   }
+
+  // ---- 3D projection (origin-centered, fit-to-content scale only) ----
+  const MIN_SCALE_3D = 8, MAX_SCALE_3D = 90;
+  let scale3 = 40;
+  function computeFitScale3D(points, w, h) {
+    const maxHalfW = Math.max(20, w / 2 - MARGIN_PX);
+    const maxHalfH = Math.max(20, h / 2 - MARGIN_PX);
+    let minS = Infinity;
+    points.forEach(function (p) {
+      const r = rotatePoint(p, yaw, pitch);
+      const f = FOCAL / (FOCAL + r.z);
+      const ox = Math.abs(r.x * f), oy = Math.abs(r.y * f);
+      if (ox > 1e-6) minS = Math.min(minS, maxHalfW / ox);
+      if (oy > 1e-6) minS = Math.min(minS, maxHalfH / oy);
+    });
+    if (!isFinite(minS)) return 40;
+    return Math.max(MIN_SCALE_3D, Math.min(MAX_SCALE_3D, minS));
+  }
+  function toScreen3D(p, w, h) {
+    const r = rotatePoint(p, yaw, pitch);
+    return projectPoint(r, { focal: FOCAL, scale: scale3, cx: w / 2, cy: h / 2 });
+  }
+
+  // one flat "current view" projector so drawing helpers don't need to
+  // branch on `view` themselves
+  let toScreen = toScreen2D;
 
   function drawLine(p1, p2, w, h, color, width, dash, alpha) {
     const s1 = toScreen(p1, w, h), s2 = toScreen(p2, w, h);
@@ -585,19 +877,19 @@
     ctx.fill();
     if (label) {
       // offset perpendicular to THIS arrow's own direction (not a fixed
-      // screen-space nudge) -- B's tip-to-tail arrowhead lands exactly on R's
-      // tip, so a fixed offset would stack their labels on top of each other
+      // screen-space nudge) -- tip-to-tail arrowheads often land exactly on
+      // another vector's tip, so a fixed offset would stack the labels
       ctx.font = '700 14px ' + getComputedStyle(document.body).fontFamily;
       ctx.fillText(label, s2.x - ux * 8 + px * 15, s2.y - uy * 8 + py * 15);
     }
     ctx.restore();
   }
 
+  // ============ DRAWING: 2D TAB ============
   // Dashed right-angle "shadow" of a vector's tip onto each axis, anchored at
-  // `origin` (the true origin for A, or wherever B's tail currently is for
-  // B) -- this is the picture of "resolving into components."
-  function drawComponentDrops(origin, comp, w, h, color) {
-    const tip = addV(origin, comp);
+  // `origin` -- the picture of "resolving into components."
+  function drawComponentDrops2D(origin, comp, w, h, color) {
+    const tip = addV2(origin, comp);
     const footX = { x: tip.x, y: origin.y };
     const footY = { x: origin.x, y: tip.y };
     drawLine(tip, footX, w, h, color, 1.4, [5, 4], 0.55);
@@ -606,57 +898,164 @@
     drawLine(origin, footY, w, h, color, 1.4, [5, 4], 0.35);
   }
 
-  function drawGrid(w, h) {
+  function drawGrid2D(w, h) {
     const gridColor = 'rgba(91, 74, 150, 0.28)';
     const step = 1;
-    const left = fit.cx - (w / 2) / fit.scale, right = fit.cx + (w / 2) / fit.scale;
-    const top = fit.cy + (h / 2) / fit.scale, bottom = fit.cy - (h / 2) / fit.scale;
+    const left = fit2.cx - (w / 2) / fit2.scale, right = fit2.cx + (w / 2) / fit2.scale;
+    const top = fit2.cy + (h / 2) / fit2.scale, bottom = fit2.cy - (h / 2) / fit2.scale;
     const i0 = Math.floor(left / step), i1 = Math.ceil(right / step);
     const j0 = Math.floor(bottom / step), j1 = Math.ceil(top / step);
     for (let i = i0; i <= i1; i++) drawLine({ x: i, y: bottom }, { x: i, y: top }, w, h, gridColor, 1);
     for (let j = j0; j <= j1; j++) drawLine({ x: left, y: j }, { x: right, y: j }, w, h, gridColor, 1);
   }
 
-  function drawAxes(w, h) {
+  function drawAxes2D(w, h) {
     const axisColor = css('--ink-faint') || '#7B6FA6';
-    const left = fit.cx - (w / 2) / fit.scale, right = fit.cx + (w / 2) / fit.scale;
-    const top = fit.cy + (h / 2) / fit.scale, bottom = fit.cy - (h / 2) / fit.scale;
+    const left = fit2.cx - (w / 2) / fit2.scale, right = fit2.cx + (w / 2) / fit2.scale;
+    const top = fit2.cy + (h / 2) / fit2.scale, bottom = fit2.cy - (h / 2) / fit2.scale;
     drawLine({ x: left, y: 0 }, { x: right, y: 0 }, w, h, axisColor, 1.5);
     drawLine({ x: 0, y: bottom }, { x: 0, y: top }, w, h, axisColor, 1.5);
   }
 
-  function drawScene() {
-    const rect = sceneWrap.getBoundingClientRect();
-    const w = rect.width, h = rect.height;
-    if (w < 1 || h < 1) return;
-    fit = computeFit(w, h);
-    ctx.clearRect(0, 0, w, h);
-    drawGrid(w, h);
-    drawAxes(w, h);
+  function drawScene2D(w, h) {
+    fit2 = computeFit2D(w, h);
+    toScreen = toScreen2D;
+    drawGrid2D(w, h);
+    drawAxes2D(w, h);
 
-    const Ac = comps(A), Bc = comps(B);
-    const R = addV(Ac, Bc);
+    const Ac = comps2(A2), Bc = comps2(B2);
+    const R = addV2(Ac, Bc);
     const cyan = css('--cyan'), accent = css('--accent'), gold = css('--gold');
-
-    // B's tail slides between the origin (tailAnim=0) and A's tip (tailAnim=1)
     const bTail = { x: Ac.x * tailAnim, y: Ac.y * tailAnim };
-    const bTip = addV(bTail, Bc);
+    const bTip = addV2(bTail, Bc);
 
     if (showParallelogram) {
-      // the faint alternate path: B from the origin, then A tip-to-tail at B's tip
-      drawArrow(O, Bc, w, h, accent, undefined, 0.3, 2);
+      drawArrow(O2, Bc, w, h, accent, undefined, 0.3, 2);
       drawArrow(Bc, R, w, h, cyan, undefined, 0.3, 2);
       drawLine(Ac, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
       drawLine(Bc, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
     }
 
-    drawArrow(O, Ac, w, h, cyan, 'A');
-    drawComponentDrops(O, Ac, w, h, cyan);
-
+    drawArrow(O2, Ac, w, h, cyan, 'A');
+    drawComponentDrops2D(O2, Ac, w, h, cyan);
     drawArrow(bTail, bTip, w, h, accent, 'B');
-    drawComponentDrops(bTail, Bc, w, h, accent);
+    drawComponentDrops2D(bTail, Bc, w, h, accent);
+    drawArrow(O2, R, w, h, gold, 'R', undefined, 4);
+  }
 
-    drawArrow(O, R, w, h, gold, 'R', undefined, 4);
+  // ============ DRAWING: 3D TAB ============
+  function drawGrid3D(w, h) {
+    const N = 5;
+    const gridColor = 'rgba(91, 74, 150, 0.28)';
+    for (let i = -N; i <= N; i++) {
+      drawLine({ x: i, y: 0, z: -N }, { x: i, y: 0, z: N }, w, h, gridColor, 1);
+      drawLine({ x: -N, y: 0, z: i }, { x: N, y: 0, z: i }, w, h, gridColor, 1);
+    }
+  }
+  function drawAxes3D(w, h) {
+    const axisColor = css('--ink-faint') || '#7B6FA6';
+    drawLine({ x: -5, y: 0, z: 0 }, { x: 5, y: 0, z: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: -5, z: 0 }, { x: 0, y: 5, z: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: 0, z: -5 }, { x: 0, y: 0, z: 5 }, w, h, axisColor, 1.5);
+    ctx.save();
+    ctx.fillStyle = axisColor;
+    ctx.font = '700 12px ' + getComputedStyle(document.body).fontFamily;
+    [[{ x: 5.4, y: 0, z: 0 }, 'X'], [{ x: 0, y: 5.4, z: 0 }, 'Y'], [{ x: 0, y: 0, z: 5.4 }, 'Z']].forEach(function (pair) {
+      const s = toScreen(pair[0], w, h);
+      ctx.fillText(pair[1], s.x - 4, s.y + 4);
+    });
+    ctx.restore();
+  }
+  // faint dashed axis-walk -- the 3D analog of drawComponentDrops2D
+  function drawComponentWalk3D(origin, comp, w, h, color) {
+    const path = axisWalk3(origin, comp);
+    for (let i = 0; i < path.length - 1; i++) drawLine(path[i], path[i + 1], w, h, color, 1.4, [5, 4], 0.45);
+  }
+
+  function fitPoints3D() {
+    const R = addV3(A3, B3);
+    return [O3, A3, B3, R];
+  }
+
+  function drawScene3D(w, h) {
+    scale3 = computeFitScale3D(fitPoints3D(), w, h);
+    toScreen = toScreen3D;
+    drawGrid3D(w, h);
+    drawAxes3D(w, h);
+
+    const R = addV3(A3, B3);
+    const cyan = css('--cyan'), accent = css('--accent'), gold = css('--gold');
+    const bTail = scaleV3(A3, tailAnim);
+    const bTip = addV3(bTail, B3);
+
+    if (showParallelogram) {
+      drawArrow(O3, B3, w, h, accent, undefined, 0.3, 2);
+      drawArrow(B3, R, w, h, cyan, undefined, 0.3, 2);
+      drawLine(A3, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
+      drawLine(B3, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
+    }
+
+    drawArrow(O3, A3, w, h, cyan, 'A');
+    drawComponentWalk3D(O3, A3, w, h, cyan);
+    drawArrow(bTail, bTip, w, h, accent, 'B');
+    drawComponentWalk3D(bTail, B3, w, h, accent);
+    drawArrow(O3, R, w, h, gold, 'R', undefined, 4);
+  }
+
+  // ============ DRAWING: i-j-k TAB ============
+  function getDecomposeVector() {
+    if (decomposeTarget === 'A') return { c: A3, color: css('--cyan'), label: 'A' };
+    if (decomposeTarget === 'B') return { c: B3, color: css('--accent'), label: 'B' };
+    return { c: addV3(A3, B3), color: css('--gold'), label: 'R' };
+  }
+
+  function fitPointsIjk() {
+    const target = getDecomposeVector();
+    return [O3, target.c, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }];
+  }
+
+  function drawUnitVectors3D(w, h) {
+    const faint = css('--ink-soft') || '#B7ADD9';
+    drawArrow({ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, w, h, faint, 'î', 0.85, 2);
+    drawArrow({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, w, h, faint, 'ĵ', 0.85, 2);
+    drawArrow({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, w, h, faint, 'k̂', 0.85, 2);
+  }
+
+  function drawSceneIjk(w, h) {
+    scale3 = computeFitScale3D(fitPointsIjk(), w, h);
+    toScreen = toScreen3D;
+    drawGrid3D(w, h);
+    drawAxes3D(w, h);
+    drawUnitVectors3D(w, h);
+
+    const target = getDecomposeVector();
+    // the direct vector itself, faint -- confirms the walk below lands on it
+    drawArrow(O3, target.c, w, h, target.color, undefined, 0.3, 2);
+
+    const path = axisWalk3(O3, target.c);
+    const segLabels = ['î', 'ĵ', 'k̂'];
+    for (let i = 0; i < path.length - 1; i++) {
+      drawArrow(path[i], path[i + 1], w, h, target.color, segLabels[i]);
+    }
+    // the target's own tip, marked, so it's clear the walk arrives exactly there
+    const sp = toScreen(target.c, w, h);
+    ctx.save();
+    ctx.fillStyle = target.color;
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ============ MASTER DRAW / RENDER ============
+  function drawScene() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    if (w < 1 || h < 1) return;
+    ctx.clearRect(0, 0, w, h);
+    if (view === '2d') drawScene2D(w, h);
+    else if (view === '3d') drawScene3D(w, h);
+    else drawSceneIjk(w, h);
   }
 
   function render() {
@@ -666,31 +1065,47 @@
 
   // ============ READOUTS ============
   function updateReadouts() {
-    const Ac = comps(A), Bc = comps(B);
-    const R = addV(Ac, Bc);
-    const Rmag = Math.hypot(R.x, R.y);
-    const Rangle = Rmag > 1e-6 ? normalizeDeg((Math.atan2(R.y, R.x) * 180) / Math.PI) : null;
+    const Ac = comps2(A2), Bc = comps2(B2);
+    const R2 = addV2(Ac, Bc);
+    const Rmag2 = Math.hypot(R2.x, R2.y);
+    const Rangle2 = Rmag2 > 1e-6 ? normalizeDeg((Math.atan2(R2.y, R2.x) * 180) / Math.PI) : null;
+    const R3 = addV3(A3, B3);
 
-    compsA.textContent = '(' + fmt(Ac.x) + ', ' + fmt(Ac.y) + ')';
-    compsB.textContent = '(' + fmt(Bc.x) + ', ' + fmt(Bc.y) + ')';
-    axOut.textContent = fmt(Ac.x);
-    ayOut.textContent = fmt(Ac.y);
-    bxOut.textContent = fmt(Bc.x);
-    byOut.textContent = fmt(Bc.y);
+    compsA.textContent = view === '2d' ? '(' + fmt(Ac.x) + ', ' + fmt(Ac.y) + ')' : '(' + fmt(A3.x) + ', ' + fmt(A3.y) + ', ' + fmt(A3.z) + ')';
+    compsB.textContent = view === '2d' ? '(' + fmt(Bc.x) + ', ' + fmt(Bc.y) + ')' : '(' + fmt(B3.x) + ', ' + fmt(B3.y) + ', ' + fmt(B3.z) + ')';
+    if (view === '2d') {
+      aDerived.innerHTML = '<span>A<sub>x</sub> = <b>' + fmt(Ac.x) + '</b></span><span>A<sub>y</sub> = <b>' + fmt(Ac.y) + '</b></span>';
+      bDerived.innerHTML = '<span>B<sub>x</sub> = <b>' + fmt(Bc.x) + '</b></span><span>B<sub>y</sub> = <b>' + fmt(Bc.y) + '</b></span>';
+    } else {
+      aDerived.innerHTML = '<span>|A| = <b>' + fmt(length3(A3)) + '</b></span>';
+      bDerived.innerHTML = '<span>|B| = <b>' + fmt(length3(B3)) + '</b></span>';
+    }
 
-    ledgerAx.textContent = fmtSigned(Ac.x);
-    ledgerBx.textContent = fmtSigned(Bc.x);
-    ledgerRx.textContent = fmtSigned(R.x);
-    ledgerAy.textContent = fmtSigned(Ac.y);
-    ledgerBy.textContent = fmtSigned(Bc.y);
-    ledgerRy.textContent = fmtSigned(R.y);
+    ledgerAx.textContent = fmtSigned(Ac.x); ledgerBx.textContent = fmtSigned(Bc.x); ledgerRx.textContent = fmtSigned(R2.x);
+    ledgerAy.textContent = fmtSigned(Ac.y); ledgerBy.textContent = fmtSigned(Bc.y); ledgerRy.textContent = fmtSigned(R2.y);
+    resultValue.textContent = fmt(Rmag2) + ' @ ' + (Rangle2 === null ? '—' : fmt(Rangle2, 1) + '°');
+    explainText.innerHTML = 'Slide the magnitude and angle for <strong style="color:var(--cyan)">A</strong> and <strong style="color:var(--accent)">B</strong> and watch their x- and y-components add straight down each column above. Placing B’s tail at A’s tip (tip-to-tail) draws the same sum graphically: walk along A, then along B, and you land exactly on <strong style="color:var(--gold)">R</strong>. Toggle back to "From origin" to confirm it’s the identical arrow, just relocated.';
 
-    resultValue.textContent = fmt(Rmag) + ' @ ' + (Rangle === null ? '—' : fmt(Rangle, 1) + '°');
+    ledger3Ax.textContent = fmtSigned(A3.x); ledger3Bx.textContent = fmtSigned(B3.x); ledger3Rx.textContent = fmtSigned(R3.x);
+    ledger3Ay.textContent = fmtSigned(A3.y); ledger3By.textContent = fmtSigned(B3.y); ledger3Ry.textContent = fmtSigned(R3.y);
+    ledger3Az.textContent = fmtSigned(A3.z); ledger3Bz.textContent = fmtSigned(B3.z); ledger3Rz.textContent = fmtSigned(R3.z);
+    resultValue3D.textContent = '|R| = ' + fmt(length3(R3));
+    explainText3D.innerHTML = 'Same rule, one more column: <strong style="color:var(--cyan)">A</strong> and <strong style="color:var(--accent)">B</strong>’s x, y, and z parts each add on their own, with no interaction between axes. Drag the scene to confirm <strong style="color:var(--gold)">R</strong> really does sit at the far corner of the box A and B’s tip-to-tail walk traces out.';
 
-    explainText.innerHTML = 'Slide the magnitude and angle for <strong style="color:var(--cyan)">A</strong> and <strong style="color:var(--accent)">B</strong> and watch their x- and y-components add straight down each column above. Placing B’s tail at A’s tip (tip-to-tail) draws the same sum graphically: walk along A, then along B, and you land exactly on <strong style="color:var(--gold)">R</strong> &mdash; the single vector that gets you there directly. Toggle back to "From origin" to confirm it’s the identical arrow, just relocated.';
+    const target = getDecomposeVector();
+    ijkTargetNote.textContent = 'Showing the breakdown of ' + target.label + (decomposeTarget === 'R' ? ' = A + B' : '') + '.';
+    const iTerm = '<span class="ijk-term-i">' + fmtTerm(target.c.x, 'î') + '</span>';
+    const jTerm = '<span class="ijk-term-j">' + fmtTerm(target.c.y, 'ĵ') + '</span>';
+    const kTerm = '<span class="ijk-term-k">' + fmtTerm(target.c.z, 'k̂') + '</span>';
+    ijkNotation.innerHTML = target.label + ' = ' + iTerm + ' + ' + jTerm + ' + ' + kTerm;
+    ijkMagnitude.textContent = '|' + target.label + '| = √(' + fmt(target.c.x) + '² + ' + fmt(target.c.y) + '² + ' + fmt(target.c.z) + '²) = ' + fmt(length3(target.c));
+    explainTextIjk.innerHTML = 'Walk ' + fmt(target.c.x) + ' along <strong style="color:var(--cyan)">î</strong>, then ' + fmt(target.c.y) + ' along <strong style="color:var(--gold)">ĵ</strong>, then ' + fmt(target.c.z) + ' along <strong style="color:var(--accent)">k̂</strong>, and you land exactly on ' + target.label + '. That walk <em>is</em> the sum ' + target.label + '<sub>x</sub>î + ' + target.label + '<sub>y</sub>ĵ + ' + target.label + '<sub>z</sub>k̂ — unit-vector notation is just this same component addition, written as an equation instead of drawn as a path.';
   }
 
+  updateViewChips();
   updatePlacementChips();
+  updateDecomposeChips();
+  updateUIForView();
   resizeCanvas();
 })();
 </script>
