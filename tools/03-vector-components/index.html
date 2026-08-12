@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vector Components Lab</title>
+<meta name="description" content="See how a single vector breaks into its i-j-k pieces, in 2D and in 3D — drag magnitude/angle or x/y/z, and watch it get built one unit vector at a time." />
+<style>
+  :root {
+    --bg: #0B0A18;
+    --surface: #17132B;
+    --surface-2: #1F1A3B;
+    --ink: #F4EFE6;
+    --ink-soft: #B7ADD9;
+    --ink-faint: #7B6FA6;
+    --line: #2A2350;
+    --line-bright: #5B4A96;
+    --accent: #FF4D7E;
+    --cyan: #33F1E6;
+    --gold: #FFD84D;
+    --positive: #4ADE80;
+    --shadow-color: #000000;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    padding: 2.25rem 1.25rem 4rem;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.14) 0px,
+      rgba(0, 0, 0, 0.14) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.85rem;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  /* ---------- 8-bit panel utility ---------- */
+  .panel-8bit { position: relative; z-index: 0; }
+  .panel-8bit::before, .panel-8bit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+  }
+  .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
+  .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 3px solid var(--line-bright);
+    padding-bottom: 1.4rem;
+  }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+  .eyebrow::before { content: '// '; opacity: 0.7; }
+  header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
+  header.masthead p {
+    margin: 0.3rem 0 0; color: var(--ink-soft); max-width: 68ch; font-size: 0.92rem;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
+
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- mode switchers ---------- */
+  .mode-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .chip {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip:active { transform: translate(3px, 3px); box-shadow: none; }
+  .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
+  .chip.chip-view.is-active { background: var(--cyan); color: var(--bg); }
+
+  /* ---------- viewport ---------- */
+  .viewport-panel { padding: 0.9rem; }
+  .viewport-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .viewport-hint { font-size: 0.76rem; color: var(--ink-faint); }
+  .viewport-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .btn-ghost {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
+  .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .scene-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: var(--bg);
+    border: 2px solid var(--line-bright);
+    overflow: hidden;
+    touch-action: none;
+  }
+  .scene-wrap.orbitable { cursor: grab; }
+  .scene-wrap.orbitable.dragging { cursor: grabbing; }
+  .scene-wrap canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---------- vector controls ---------- */
+  .vector-card { padding: 1.1rem 1.2rem 1.2rem; }
+  .vector-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+  }
+  .vector-name { font-size: 1rem; font-weight: 700; }
+  .vector-comps { font-size: 0.8rem; color: var(--ink-faint); }
+  .comp-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .comp-row:last-child { margin-bottom: 0; }
+  .comp-label { flex: none; width: 3.1rem; font-size: 0.78rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  input[type="range"].comp-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 0.4rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    cursor: pointer;
+  }
+  input[type="range"].comp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.9rem;
+    height: 1.3rem;
+    background: var(--cyan);
+    border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color);
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"].comp-slider::-moz-range-thumb {
+    width: 0.9rem; height: 1.3rem; background: var(--cyan); border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color); cursor: pointer; border-radius: 0;
+  }
+  input.comp-value {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 0.28rem 0.4rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--ink);
+    width: 3.9rem;
+    text-align: right;
+    flex: none;
+  }
+
+  /* ---------- notation panel ---------- */
+  .notation-panel { padding: 1.2rem 1.4rem 1.4rem; }
+  .notation-box {
+    padding: 1.2rem 1.1rem;
+    border: 2px dashed var(--line-bright);
+    margin-bottom: 1.1rem;
+    text-align: center;
+  }
+  .notation-box .nb-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.55rem; }
+  .notation-box .nb-value { font-size: 1.55rem; font-weight: 700; }
+  .notation-box .nb-value span { transition: opacity 0.1s linear; }
+  .term-i { color: var(--gold); }
+  .term-j { color: var(--accent); }
+  .term-k { color: var(--positive); }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 1.1rem;
+  }
+  .stat-item { display: flex; flex-direction: column; gap: 0.25rem; }
+  .stat-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; }
+  .stat-value { font-size: 1rem; font-weight: 700; color: var(--ink); }
+
+  .explain-text { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; }
+  .explain-text strong { color: var(--ink); }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    padding-top: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+  footer::after { content: '_'; color: var(--cyan); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    footer::after { animation: none; opacity: 1; }
+    .chip, .btn-ghost { transition: none; }
+  }
+
+  @media (max-width: 640px) {
+    header.masthead h1 { font-size: 1.6rem; }
+    .notation-box .nb-value { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow">Vectors &middot; Unit Vector Decomposition</div>
+    <h1>Vector Components Lab</h1>
+    <p id="introText">î and ĵ are the unit vectors along x and y &mdash; each exactly length 1. Any vector is just its components times these: V = V<sub>x</sub>î + V<sub>y</sub>ĵ. Drag magnitude and angle, and watch V get built one unit vector at a time.</p>
+  </header>
+
+  <div class="mode-chips" id="viewChips" role="group" aria-label="2D or 3D"></div>
+
+  <section class="viewport-panel panel-8bit" aria-label="Vector diagram">
+    <div class="viewport-toolbar">
+      <div class="viewport-hint" id="viewportHint">Walk along î, then ĵ, and you land exactly on V</div>
+      <div class="viewport-actions">
+        <button class="btn-ghost" id="resetViewBtn" type="button" style="display:none;">&#8635; Reset view</button>
+        <button class="btn-ghost" id="playBuildBtn" type="button">&#9654; Play build</button>
+      </div>
+    </div>
+    <div class="scene-wrap" id="sceneWrap">
+      <canvas id="scene"></canvas>
+    </div>
+  </section>
+
+  <section class="vector-card panel-8bit">
+    <div class="vector-card-head">
+      <span class="vector-name" style="color:var(--cyan);">Vector V</span>
+      <span class="vector-comps mono" id="compsV"></span>
+    </div>
+    <div id="vPolarInputs">
+      <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="vMagSlider" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="vMagValue" /></div>
+      <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="vAngleSlider" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="vAngleValue" /></div>
+    </div>
+    <div id="vCartInputs" style="display:none;">
+      <div class="comp-row"><span class="comp-label">x</span><input type="range" class="comp-slider" id="v3xSlider" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="v3xValue" /></div>
+      <div class="comp-row"><span class="comp-label">y</span><input type="range" class="comp-slider" id="v3ySlider" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="v3yValue" /></div>
+      <div class="comp-row"><span class="comp-label">z</span><input type="range" class="comp-slider" id="v3zSlider" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="v3zValue" /></div>
+    </div>
+  </section>
+
+  <section class="notation-panel panel-8bit" aria-label="Unit-vector notation">
+    <div class="notation-box">
+      <div class="nb-label">Written in unit-vector notation</div>
+      <div class="nb-value mono" id="notation">&mdash;</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-item"><span class="stat-label">|V|</span><span class="stat-value mono" id="statMag">&mdash;</span></div>
+      <div class="stat-item" id="statAngleWrap"><span class="stat-label" id="statAngleLabel">Angle from +x</span><span class="stat-value mono" id="statAngle">&mdash;</span></div>
+      <div class="stat-item" id="statDirWrap" style="display:none;"><span class="stat-label">Direction angles (&alpha;, &beta;, &gamma;)</span><span class="stat-value mono" id="statDir">&mdash;</span></div>
+    </div>
+    <p class="explain-text" id="explainText"></p>
+  </section>
+
+  <footer>Drag V &mdash; the walk always lands exactly where the arrow points</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ MATH: 2D ============
+  function comps2(v) {
+    const r = (v.angle * Math.PI) / 180;
+    return { x: v.mag * Math.cos(r), y: v.mag * Math.sin(r) };
+  }
+  function normalizeDeg(d) { let x = d % 360; if (x < 0) x += 360; return x; }
+
+  // ============ MATH: 3D ============
+  function dot3(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+  function length3(a) { return Math.sqrt(dot3(a, a)); }
+  function rotatePoint(p, yaw, pitch) {
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const x1 = p.x * cy + p.z * sy;
+    const z1 = -p.x * sy + p.z * cy;
+    const y1 = p.y;
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const y2 = y1 * cp - z1 * sp;
+    const z2 = y1 * sp + z1 * cp;
+    return { x: x1, y: y2, z: z2 };
+  }
+  function projectPoint(p, opts) {
+    const denom = opts.focal + p.z;
+    const f = denom !== 0 ? opts.focal / denom : opts.focal;
+    return { x: opts.cx + p.x * f * opts.scale, y: opts.cy - p.y * f * opts.scale, depth: p.z };
+  }
+  function lerpPt(p1, p2, t) { return { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t, z: (p1.z || 0) + ((p2.z || 0) - (p1.z || 0)) * t }; }
+
+  // ============ FORMATTING ============
+  function fmt(n, decimals) {
+    if (!isFinite(n)) return '0';
+    const d = decimals === undefined ? 2 : decimals;
+    let s = n.toFixed(d);
+    if (s === '-0.00' || s === '-0.0' || s === '-0') s = s.slice(1);
+    return s;
+  }
+  function fmtTerm(n, symbolHtml) {
+    return (n < -1e-9 ? '−' : '') + fmt(Math.abs(n)) + symbolHtml;
+  }
+
+  // ============ STATE ============
+  let view = '2d'; // '2d' | '3d'
+  let V2 = { mag: 6, angle: 40 };
+  let V3 = { x: 4, y: 3, z: 2 };
+
+  // ============ DOM ============
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const sceneWrap = document.getElementById('sceneWrap');
+  const introText = document.getElementById('introText');
+  const viewChipsHost = document.getElementById('viewChips');
+  const viewportHint = document.getElementById('viewportHint');
+  const resetViewBtn = document.getElementById('resetViewBtn');
+  const playBuildBtn = document.getElementById('playBuildBtn');
+  const vPolarInputs = document.getElementById('vPolarInputs');
+  const vCartInputs = document.getElementById('vCartInputs');
+  const compsV = document.getElementById('compsV');
+  const notation = document.getElementById('notation');
+  const statMag = document.getElementById('statMag');
+  const statAngleWrap = document.getElementById('statAngleWrap');
+  const statAngleLabel = document.getElementById('statAngleLabel');
+  const statAngle = document.getElementById('statAngle');
+  const statDirWrap = document.getElementById('statDirWrap');
+  const statDir = document.getElementById('statDir');
+  const explainText = document.getElementById('explainText');
+
+  // ============ VIEW TABS ============
+  const VIEWS = [{ id: '2d', label: '2D' }, { id: '3d', label: '3D' }];
+  const viewChipEls = VIEWS.map(function (v) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip chip-view';
+    chip.textContent = v.label;
+    chip.addEventListener('click', function () { setView(v.id); });
+    viewChipsHost.appendChild(chip);
+    return chip;
+  });
+  function updateViewChips() {
+    viewChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', VIEWS[i].id === view); });
+  }
+
+  const VIEW_COPY = {
+    '2d': {
+      intro: 'î and ĵ are the unit vectors along x and y — each exactly length 1. Any vector is just its components times these: V = Vxî + Vyĵ. Drag magnitude and angle, and watch V get built one unit vector at a time.',
+      hint: 'Walk along î, then ĵ, and you land exactly on V',
+    },
+    '3d': {
+      intro: 'One more dimension, one more unit vector: î, ĵ, and k̂ point along x, y, and z. Any vector in space is V = Vxî + Vyĵ + Vzk̂. Drag to orbit, drag the sliders, and watch V get built one axis at a time.',
+      hint: 'Drag to rotate — walk along î, then ĵ, then k̂, and you land exactly on V',
+    },
+  };
+
+  function setView(v) {
+    if (v === view) return;
+    view = v;
+    buildAnim = null;
+    updateViewChips();
+    updateUIForView();
+    render();
+  }
+  function updateUIForView() {
+    const is2D = view === '2d';
+    introText.textContent = VIEW_COPY[view].intro;
+    viewportHint.textContent = VIEW_COPY[view].hint;
+    vPolarInputs.style.display = is2D ? '' : 'none';
+    vCartInputs.style.display = is2D ? 'none' : '';
+    resetViewBtn.style.display = is2D ? 'none' : '';
+    statAngleWrap.style.display = is2D ? '' : 'none';
+    statDirWrap.style.display = is2D ? 'none' : '';
+    sceneWrap.classList.toggle('orbitable', !is2D);
+  }
+
+  // ============ VECTOR SLIDERS ============
+  function bindComponent(sliderId, valueId, vec, key, min, max, decimals, onChange) {
+    const slider = document.getElementById(sliderId);
+    const value = document.getElementById(valueId);
+    slider.value = String(vec[key]);
+    value.value = fmt(vec[key], decimals);
+    slider.addEventListener('input', function () {
+      vec[key] = parseFloat(slider.value);
+      value.value = fmt(vec[key], decimals);
+      onChange();
+    });
+    value.addEventListener('change', function () {
+      const parsed = parseFloat(value.value);
+      if (!isNaN(parsed)) {
+        vec[key] = Math.max(min, Math.min(max, parsed));
+        slider.value = String(vec[key]);
+      }
+      value.value = fmt(vec[key], decimals);
+      onChange();
+    });
+  }
+  function onVectorChange() { buildAnim = null; render(); }
+  bindComponent('vMagSlider', 'vMagValue', V2, 'mag', 0, 8, 2, onVectorChange);
+  bindComponent('vAngleSlider', 'vAngleValue', V2, 'angle', -720, 720, 0, onVectorChange);
+  bindComponent('v3xSlider', 'v3xValue', V3, 'x', -5, 5, 2, onVectorChange);
+  bindComponent('v3ySlider', 'v3yValue', V3, 'y', -5, 5, 2, onVectorChange);
+  bindComponent('v3zSlider', 'v3zValue', V3, 'z', -5, 5, 2, onVectorChange);
+
+  // ============ "PLAY BUILD" ANIMATION ============
+  // One-shot: walks the unit-vector path in from scratch, segment by segment,
+  // instead of just always showing the finished construction. Purely a
+  // narration aid -- the tool already shows the full decomposition live with
+  // no animation needed, this just re-plays how it was assembled.
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let buildAnim = null; // { start, duration, segCount, progress }
+  let buildLoopActive = false; // guards against stacking a second rAF chain on repeat clicks
+  if (reduceMotion) playBuildBtn.style.display = 'none';
+
+  function playBuild() {
+    const segCount = view === '3d' ? 3 : 2;
+    // restart from scratch even if a build is already mid-playback -- but
+    // reuse the existing rAF chain rather than starting a second one
+    buildAnim = { start: null, duration: segCount * 750, segCount: segCount, progress: 0 };
+    if (!buildLoopActive) {
+      buildLoopActive = true;
+      requestAnimationFrame(tickBuild);
+    }
+  }
+  function tickBuild(ts) {
+    if (!buildAnim) { buildLoopActive = false; return; }
+    if (buildAnim.start === null) buildAnim.start = ts;
+    const t = Math.min(1, (ts - buildAnim.start) / buildAnim.duration);
+    buildAnim.progress = t;
+    drawScene();
+    updateNotationOpacity();
+    if (t < 1) {
+      requestAnimationFrame(tickBuild);
+    } else {
+      buildAnim = null;
+      buildLoopActive = false;
+      updateNotationOpacity();
+    }
+  }
+  playBuildBtn.addEventListener('click', playBuild);
+
+  // reveal fraction for segment index i (0-based) of segCount total, given
+  // overall progress in [0,1] -- each segment gets an equal time slice
+  function segReveal(i, segCount, progress) {
+    if (progress === undefined) return 1; // no animation running -- fully built
+    const start = i / segCount, end = (i + 1) / segCount;
+    return Math.max(0, Math.min(1, (progress - start) / (end - start)));
+  }
+
+  // ============ 3D ORBIT CONTROLS ============
+  let yaw = 0.6, pitch = 0.32;
+  const DEFAULT_YAW = 0.6, DEFAULT_PITCH = 0.32;
+  const FOCAL = 420;
+  let dragging = false, lastX = 0, lastY = 0;
+  function pointerDown(x, y) {
+    if (view === '2d') return;
+    dragging = true; lastX = x; lastY = y;
+    sceneWrap.classList.add('dragging');
+  }
+  function pointerMove(x, y) {
+    if (!dragging) return;
+    const dx = x - lastX, dy = y - lastY;
+    lastX = x; lastY = y;
+    yaw += dx * 0.008;
+    pitch += dy * 0.008;
+    pitch = Math.max(-1.45, Math.min(1.45, pitch));
+    render();
+  }
+  function pointerUp() { dragging = false; sceneWrap.classList.remove('dragging'); }
+  sceneWrap.addEventListener('mousedown', function (e) { pointerDown(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', function (e) { pointerMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', pointerUp);
+  sceneWrap.addEventListener('touchstart', function (e) { const t = e.touches[0]; pointerDown(t.clientX, t.clientY); }, { passive: true });
+  sceneWrap.addEventListener('touchmove', function (e) { const t = e.touches[0]; pointerMove(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  sceneWrap.addEventListener('touchend', pointerUp);
+  resetViewBtn.addEventListener('click', function () { yaw = DEFAULT_YAW; pitch = DEFAULT_PITCH; render(); });
+
+  // ============ CANVAS SIZING ============
+  function resizeCanvas() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ============ DRAWING: SHARED HELPERS ============
+  function css(varName) { return getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); }
+  const MARGIN_PX = 46;
+
+  // ---- 2D projection ----
+  const MIN_SPAN_2D = 2.5, MIN_SCALE_2D = 12, MAX_SCALE_2D = 90;
+  let fit2 = { scale: 40, cx: 0, cy: 0 };
+  function computeFit2D(w, h) {
+    const Vc = comps2(V2);
+    const pts = [{ x: 0, y: 0 }, Vc, { x: 1, y: 0 }, { x: 0, y: 1 }];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    pts.forEach(function (p) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    });
+    const spanX = Math.max(MIN_SPAN_2D, maxX - minX);
+    const spanY = Math.max(MIN_SPAN_2D, maxY - minY);
+    const availW = Math.max(20, w - MARGIN_PX * 2);
+    const availH = Math.max(20, h - MARGIN_PX * 2);
+    let scale = Math.min(availW / spanX, availH / spanY);
+    scale = Math.max(MIN_SCALE_2D, Math.min(MAX_SCALE_2D, scale));
+    return { scale: scale, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+  }
+  function toScreen2D(p, w, h) {
+    return { x: w / 2 + (p.x - fit2.cx) * fit2.scale, y: h / 2 - (p.y - fit2.cy) * fit2.scale };
+  }
+
+  // ---- 3D projection ----
+  const MIN_SCALE_3D = 10, MAX_SCALE_3D = 90;
+  let scale3 = 40;
+  function computeFitScale3D(points, w, h) {
+    const maxHalfW = Math.max(20, w / 2 - MARGIN_PX);
+    const maxHalfH = Math.max(20, h / 2 - MARGIN_PX);
+    let minS = Infinity;
+    points.forEach(function (p) {
+      const r = rotatePoint(p, yaw, pitch);
+      const f = FOCAL / (FOCAL + r.z);
+      const ox = Math.abs(r.x * f), oy = Math.abs(r.y * f);
+      if (ox > 1e-6) minS = Math.min(minS, maxHalfW / ox);
+      if (oy > 1e-6) minS = Math.min(minS, maxHalfH / oy);
+    });
+    if (!isFinite(minS)) return 40;
+    return Math.max(MIN_SCALE_3D, Math.min(MAX_SCALE_3D, minS));
+  }
+  function toScreen3D(p, w, h) {
+    const r = rotatePoint(p, yaw, pitch);
+    return projectPoint(r, { focal: FOCAL, scale: scale3, cx: w / 2, cy: h / 2 });
+  }
+
+  let toScreen = toScreen2D;
+
+  function drawLine(p1, p2, w, h, color, width, dash, alpha) {
+    const s1 = toScreen(p1, w, h), s2 = toScreen(p2, w, h);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width || 2;
+    ctx.setLineDash(dash || []);
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrow(from, to, w, h, color, label, alpha, width) {
+    const s1 = toScreen(from, w, h), s2 = toScreen(to, w, h);
+    const dx0 = s2.x - s1.x, dy0 = s2.y - s1.y;
+    if (Math.hypot(dx0, dy0) < 1) return;
+    drawLine(from, to, w, h, color, width || 3, undefined, alpha);
+    const dx = s2.x - s1.x, dy = s2.y - s1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const headLen = 13, headWidth = 6.5;
+    const bx = s2.x - ux * headLen, by = s2.y - uy * headLen;
+    const px = -uy, py = ux;
+    ctx.save();
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(s2.x, s2.y);
+    ctx.lineTo(bx + px * headWidth, by + py * headWidth);
+    ctx.lineTo(bx - px * headWidth, by - py * headWidth);
+    ctx.closePath();
+    ctx.fill();
+    if (label) {
+      ctx.font = '700 14px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillText(label, s2.x - ux * 8 + px * 15, s2.y - uy * 8 + py * 15);
+    }
+    ctx.restore();
+  }
+
+  // ============ DRAWING: 2D ============
+  function drawGrid2D(w, h) {
+    const gridColor = 'rgba(91, 74, 150, 0.28)';
+    const left = fit2.cx - (w / 2) / fit2.scale, right = fit2.cx + (w / 2) / fit2.scale;
+    const top = fit2.cy + (h / 2) / fit2.scale, bottom = fit2.cy - (h / 2) / fit2.scale;
+    const i0 = Math.floor(left), i1 = Math.ceil(right);
+    const j0 = Math.floor(bottom), j1 = Math.ceil(top);
+    for (let i = i0; i <= i1; i++) drawLine({ x: i, y: bottom }, { x: i, y: top }, w, h, gridColor, 1);
+    for (let j = j0; j <= j1; j++) drawLine({ x: left, y: j }, { x: right, y: j }, w, h, gridColor, 1);
+  }
+  function drawAxes2D(w, h) {
+    const axisColor = css('--ink-faint') || '#7B6FA6';
+    const left = fit2.cx - (w / 2) / fit2.scale, right = fit2.cx + (w / 2) / fit2.scale;
+    const top = fit2.cy + (h / 2) / fit2.scale, bottom = fit2.cy - (h / 2) / fit2.scale;
+    drawLine({ x: left, y: 0 }, { x: right, y: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: bottom }, { x: 0, y: top }, w, h, axisColor, 1.5);
+  }
+
+  function drawScene2D(w, h) {
+    fit2 = computeFit2D(w, h);
+    toScreen = toScreen2D;
+    drawGrid2D(w, h);
+    drawAxes2D(w, h);
+
+    const cyan = css('--cyan'), gold = css('--gold'), accent = css('--accent'), faint = css('--ink-soft');
+    drawArrow({ x: 0, y: 0 }, { x: 1, y: 0 }, w, h, faint, 'î', 0.75, 2);
+    drawArrow({ x: 0, y: 0 }, { x: 0, y: 1 }, w, h, faint, 'ĵ', 0.75, 2);
+
+    const Vc = comps2(V2);
+    drawArrow({ x: 0, y: 0 }, Vc, w, h, cyan, undefined, 0.3, 2);
+
+    const p0 = { x: 0, y: 0 };
+    const p1 = { x: Vc.x, y: 0 };
+    const p2 = Vc;
+    const progress = buildAnim ? buildAnim.progress : undefined;
+    const r0 = segReveal(0, 2, progress), r1 = segReveal(1, 2, progress);
+    if (r0 > 0) drawArrow(p0, lerpPt(p0, p1, r0), w, h, gold, r0 >= 0.999 ? 'î' : undefined);
+    if (r1 > 0) drawArrow(p1, lerpPt(p1, p2, r1), w, h, accent, r1 >= 0.999 ? 'ĵ' : undefined);
+
+    if (!buildAnim || buildAnim.progress >= 1) {
+      const sp = toScreen(Vc, w, h);
+      ctx.save(); ctx.fillStyle = cyan; ctx.beginPath(); ctx.arc(sp.x, sp.y, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+  }
+
+  // ============ DRAWING: 3D ============
+  function drawGrid3D(w, h) {
+    const N = 5;
+    const gridColor = 'rgba(91, 74, 150, 0.28)';
+    for (let i = -N; i <= N; i++) {
+      drawLine({ x: i, y: 0, z: -N }, { x: i, y: 0, z: N }, w, h, gridColor, 1);
+      drawLine({ x: -N, y: 0, z: i }, { x: N, y: 0, z: i }, w, h, gridColor, 1);
+    }
+  }
+  function drawAxes3D(w, h) {
+    const axisColor = css('--ink-faint') || '#7B6FA6';
+    drawLine({ x: -5, y: 0, z: 0 }, { x: 5, y: 0, z: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: -5, z: 0 }, { x: 0, y: 5, z: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: 0, z: -5 }, { x: 0, y: 0, z: 5 }, w, h, axisColor, 1.5);
+    ctx.save();
+    ctx.fillStyle = axisColor;
+    ctx.font = '700 12px ' + getComputedStyle(document.body).fontFamily;
+    [[{ x: 5.4, y: 0, z: 0 }, 'X'], [{ x: 0, y: 5.4, z: 0 }, 'Y'], [{ x: 0, y: 0, z: 5.4 }, 'Z']].forEach(function (pair) {
+      const s = toScreen(pair[0], w, h);
+      ctx.fillText(pair[1], s.x - 4, s.y + 4);
+    });
+    ctx.restore();
+  }
+
+  function drawScene3D(w, h) {
+    const points = [{ x: 0, y: 0, z: 0 }, V3, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }];
+    scale3 = computeFitScale3D(points, w, h);
+    toScreen = toScreen3D;
+    drawGrid3D(w, h);
+    drawAxes3D(w, h);
+
+    const cyan = css('--cyan'), gold = css('--gold'), accent = css('--accent'), green = css('--positive'), faint = css('--ink-soft');
+    drawArrow({ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, w, h, faint, 'î', 0.75, 2);
+    drawArrow({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, w, h, faint, 'ĵ', 0.75, 2);
+    drawArrow({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, w, h, faint, 'k̂', 0.75, 2);
+
+    drawArrow({ x: 0, y: 0, z: 0 }, V3, w, h, cyan, undefined, 0.3, 2);
+
+    const p0 = { x: 0, y: 0, z: 0 };
+    const p1 = { x: V3.x, y: 0, z: 0 };
+    const p2 = { x: V3.x, y: V3.y, z: 0 };
+    const p3 = V3;
+    const progress = buildAnim ? buildAnim.progress : undefined;
+    const r0 = segReveal(0, 3, progress), r1 = segReveal(1, 3, progress), r2 = segReveal(2, 3, progress);
+    if (r0 > 0) drawArrow(p0, lerpPt(p0, p1, r0), w, h, gold, r0 >= 0.999 ? 'î' : undefined);
+    if (r1 > 0) drawArrow(p1, lerpPt(p1, p2, r1), w, h, accent, r1 >= 0.999 ? 'ĵ' : undefined);
+    if (r2 > 0) drawArrow(p2, lerpPt(p2, p3, r2), w, h, green, r2 >= 0.999 ? 'k̂' : undefined);
+
+    if (!buildAnim || buildAnim.progress >= 1) {
+      const sp = toScreen(V3, w, h);
+      ctx.save(); ctx.fillStyle = cyan; ctx.beginPath(); ctx.arc(sp.x, sp.y, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+  }
+
+  // ============ MASTER DRAW / RENDER ============
+  function drawScene() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    if (w < 1 || h < 1) return;
+    ctx.clearRect(0, 0, w, h);
+    if (view === '2d') drawScene2D(w, h); else drawScene3D(w, h);
+  }
+
+  // fades each notation term in alongside its segment while build-playing;
+  // snaps back to fully visible once the animation isn't running
+  function updateNotationOpacity() {
+    const spans = notation.querySelectorAll('span');
+    if (!buildAnim) {
+      spans.forEach(function (s) { s.style.opacity = 1; });
+      return;
+    }
+    const segCount = view === '3d' ? 3 : 2;
+    spans.forEach(function (s, i) { s.style.opacity = String(0.15 + 0.85 * segReveal(i, segCount, buildAnim.progress)); });
+  }
+
+  function render() {
+    drawScene();
+    updateReadouts();
+    updateNotationOpacity();
+  }
+
+  // ============ READOUTS ============
+  function updateReadouts() {
+    if (view === '2d') {
+      const Vc = comps2(V2);
+      compsV.textContent = '(' + fmt(Vc.x) + ', ' + fmt(Vc.y) + ')';
+      const iTerm = '<span class="term-i">' + fmtTerm(Vc.x, 'î') + '</span>';
+      const jTerm = '<span class="term-j">' + fmtTerm(Vc.y, 'ĵ') + '</span>';
+      notation.innerHTML = 'V = ' + iTerm + ' + ' + jTerm;
+      statMag.textContent = fmt(V2.mag);
+      statAngleLabel.textContent = 'Angle from +x';
+      statAngle.textContent = fmt(normalizeDeg(V2.angle), 1) + '°';
+      explainText.innerHTML = 'Walk ' + fmt(Vc.x) + ' along <strong style="color:var(--gold)">î</strong>, then ' + fmt(Vc.y) + ' along <strong style="color:var(--accent)">ĵ</strong>, and you land exactly on <strong style="color:var(--cyan)">V</strong>. That walk <em>is</em> the sum V<sub>x</sub>î + V<sub>y</sub>ĵ — unit-vector notation is just this same component breakdown, written as an equation instead of drawn as a path.';
+    } else {
+      const mag = length3(V3);
+      compsV.textContent = '(' + fmt(V3.x) + ', ' + fmt(V3.y) + ', ' + fmt(V3.z) + ')';
+      const iTerm = '<span class="term-i">' + fmtTerm(V3.x, 'î') + '</span>';
+      const jTerm = '<span class="term-j">' + fmtTerm(V3.y, 'ĵ') + '</span>';
+      const kTerm = '<span class="term-k">' + fmtTerm(V3.z, 'k̂') + '</span>';
+      notation.innerHTML = 'V = ' + iTerm + ' + ' + jTerm + ' + ' + kTerm;
+      statMag.textContent = fmt(mag) + ' = √(' + fmt(V3.x) + '² + ' + fmt(V3.y) + '² + ' + fmt(V3.z) + '²)';
+      if (mag > 1e-6) {
+        const alpha = (Math.acos(Math.max(-1, Math.min(1, V3.x / mag))) * 180) / Math.PI;
+        const beta = (Math.acos(Math.max(-1, Math.min(1, V3.y / mag))) * 180) / Math.PI;
+        const gamma = (Math.acos(Math.max(-1, Math.min(1, V3.z / mag))) * 180) / Math.PI;
+        statDir.textContent = fmt(alpha, 1) + '°, ' + fmt(beta, 1) + '°, ' + fmt(gamma, 1) + '°';
+      } else {
+        statDir.textContent = '—';
+      }
+      explainText.innerHTML = 'Walk ' + fmt(V3.x) + ' along <strong style="color:var(--gold)">î</strong>, then ' + fmt(V3.y) + ' along <strong style="color:var(--gold)">ĵ</strong>, then ' + fmt(V3.z) + ' along <strong style="color:var(--accent)">k̂</strong>, and you land exactly on <strong style="color:var(--cyan)">V</strong>. The direction angles &alpha;, &beta;, &gamma; are what V leans away from each axis — all 90&deg; would mean V points equally off every axis; a small angle means V hugs that axis closely.';
+    }
+  }
+
+  updateViewChips();
+  updateUIForView();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
