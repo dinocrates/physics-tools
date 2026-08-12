@@ -5,8 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Powers of Ten</title>
 <meta name="description" content="A scale-of-the-universe journey from the Planck length to the observable universe, with a draggable log-scale slider, 29 illustrated stops, and human-scale comparisons." />
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('physics-tools-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root {
+    --bg: #F3EEE1;
+    --surface: #FFFFFF;
+    --surface-2: #EAE1C8;
+    --ink: #1B1730;
+    --ink-soft: #4A4368;
+    --ink-faint: #746A9B;
+    --line: #D9CFA8;
+    --line-bright: #4A3B85;
+    --accent: #C81155;
+    --cyan: #037A6E;
+    --gold: #96690A;
+    --danger: #B7401F;
+    --shadow-color: #000000;
+    --scanline-alpha: 0.045;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0A18;
+      --surface: #17132B;
+      --surface-2: #1F1A3B;
+      --ink: #F4EFE6;
+      --ink-soft: #B7ADD9;
+      --ink-faint: #7B6FA6;
+      --line: #2A2350;
+      --line-bright: #5B4A96;
+      --accent: #FF4D7E;
+      --cyan: #33F1E6;
+      --gold: #FFD84D;
+      --danger: #FF6B4A;
+      --scanline-alpha: 0.14;
+    }
+  }
+  :root[data-theme="dark"] {
     --bg: #0B0A18;
     --surface: #17132B;
     --surface-2: #1F1A3B;
@@ -19,9 +62,7 @@
     --cyan: #33F1E6;
     --gold: #FFD84D;
     --danger: #FF6B4A;
-    --shadow-color: #000000;
-    --notch: 10px;
-    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    --scanline-alpha: 0.14;
   }
 
   * { box-sizing: border-box; }
@@ -41,8 +82,8 @@
     inset: 0;
     background: repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.14) 0px,
-      rgba(0, 0, 0, 0.14) 1px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 0px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 1px,
       transparent 1px,
       transparent 3px
     );
@@ -72,6 +113,24 @@
     outline: 3px solid var(--cyan);
     outline-offset: 2px;
   }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
 
   /* ---------- 8-bit panel utility ---------- */
   .panel-8bit { position: relative; z-index: 0; }
@@ -97,6 +156,7 @@
     border-bottom: 3px solid var(--line-bright);
     padding-bottom: 1.4rem;
   }
+  .masthead-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
   .eyebrow::before { content: '// '; opacity: 0.7; }
   header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
@@ -302,7 +362,10 @@
 
 <div class="page">
   <header class="masthead">
-    <div class="eyebrow">Scope of Physics</div>
+    <div class="masthead-top">
+      <div class="eyebrow">Scope of Physics</div>
+      <button class="theme-toggle" id="themeToggleBtn" type="button" title="Cycle theme: auto / light / dark">&#9681; Auto</button>
+    </div>
     <h1>Powers of Ten</h1>
     <p>Drag the slider (or use <kbd>&larr;</kbd>/<kbd>&rarr;</kbd>) to travel from the Planck length to the observable universe &mdash; sixty-two orders of magnitude, in one continuous line. Inspired by the classic Eames film of the same idea.</p>
   </header>
@@ -347,6 +410,33 @@
 <script>
 (function () {
   "use strict";
+
+  // ============ THEME TOGGLE ============
+  const THEME_KEY = 'physics-tools-theme';
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  function getStoredTheme() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
+  function setStoredTheme(v) { try { if (v === null) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, v); } catch (e) {} }
+  function themeLabel(v) { return v === 'light' ? '☀ Light' : v === 'dark' ? '☾ Dark' : '◑ Auto'; }
+  function updateThemeLabel() { themeToggleBtn.innerHTML = themeLabel(getStoredTheme()); }
+  // the scale-carousel background gradient is painted with an inline style
+  // (see bgColorAtLogm/render below), which sits outside the CSS custom
+  // property cascade -- so switching themes has to explicitly repaint it too
+  function isDarkEffective() {
+    const stored = getStoredTheme();
+    if (stored === 'light') return false;
+    if (stored === 'dark') return true;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  themeToggleBtn.addEventListener('click', function () {
+    const cur = getStoredTheme();
+    const next = cur === null ? 'light' : cur === 'light' ? 'dark' : null;
+    setStoredTheme(next);
+    if (next) document.documentElement.setAttribute('data-theme', next);
+    else document.documentElement.removeAttribute('data-theme');
+    updateThemeLabel();
+    render();
+  });
+  updateThemeLabel();
 
   // ============ DATA ============
   const STOPS = [
@@ -419,13 +509,22 @@
     return ratioStr + '× ' + (bigger ? 'bigger' : 'smaller') + ' than you';
   }
 
-  const BG_STOPS = [
+  // dark: near-black with a cool cast at tiny scales, warm cast at huge ones.
+  // light: the same story, just inverted to near-white so it still reads
+  // against light-mode ink/panels instead of going muddy.
+  const BG_STOPS_DARK = [
     { logm: STOPS[0].logm, color: [6, 22, 32] },
     { logm: 0, color: [11, 10, 24] },
     { logm: STOPS[N - 1].logm, color: [24, 10, 36] },
   ];
+  const BG_STOPS_LIGHT = [
+    { logm: STOPS[0].logm, color: [228, 244, 239] },
+    { logm: 0, color: [243, 238, 225] },
+    { logm: STOPS[N - 1].logm, color: [247, 235, 250] },
+  ];
   function lerp(a, b, t) { return a + (b - a) * t; }
   function bgColorAtLogm(logm) {
+    const BG_STOPS = isDarkEffective() ? BG_STOPS_DARK : BG_STOPS_LIGHT;
     let seg;
     if (logm <= BG_STOPS[1].logm) seg = [BG_STOPS[0], BG_STOPS[1]];
     else seg = [BG_STOPS[1], BG_STOPS[2]];

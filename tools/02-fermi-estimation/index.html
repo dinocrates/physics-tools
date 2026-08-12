@@ -5,8 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Fermi Estimation Lab</title>
 <meta name="description" content="A live Fermi estimate for Temecula's donut shops, with pins scaling on an 8-bit city map as you adjust the guesses." />
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('physics-tools-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root {
+    --bg: #F3EEE1;
+    --surface: #FFFFFF;
+    --surface-2: #EAE1C8;
+    --ink: #1B1730;
+    --ink-soft: #4A4368;
+    --ink-faint: #746A9B;
+    --line: #D9CFA8;
+    --line-bright: #4A3B85;
+    --accent: #C81155;
+    --cyan: #037A6E;
+    --gold: #96690A;
+    --danger: #B7401F;
+    --shadow-color: #000000;
+    --scanline-alpha: 0.045;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0A18;
+      --surface: #17132B;
+      --surface-2: #1F1A3B;
+      --ink: #F4EFE6;
+      --ink-soft: #B7ADD9;
+      --ink-faint: #7B6FA6;
+      --line: #2A2350;
+      --line-bright: #5B4A96;
+      --accent: #FF4D7E;
+      --cyan: #33F1E6;
+      --gold: #FFD84D;
+      --danger: #FF6B4A;
+      --scanline-alpha: 0.14;
+    }
+  }
+  :root[data-theme="dark"] {
     --bg: #0B0A18;
     --surface: #17132B;
     --surface-2: #1F1A3B;
@@ -19,9 +62,7 @@
     --cyan: #33F1E6;
     --gold: #FFD84D;
     --danger: #FF6B4A;
-    --shadow-color: #000000;
-    --notch: 10px;
-    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    --scanline-alpha: 0.14;
   }
 
   * { box-sizing: border-box; }
@@ -40,8 +81,8 @@
     inset: 0;
     background: repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.14) 0px,
-      rgba(0, 0, 0, 0.14) 1px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 0px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 1px,
       transparent 1px,
       transparent 3px
     );
@@ -88,6 +129,23 @@
   .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
   .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
 
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
+
   /* ---------- header ---------- */
   header.masthead {
     display: flex;
@@ -96,6 +154,7 @@
     border-bottom: 3px solid var(--line-bright);
     padding-bottom: 1.4rem;
   }
+  .masthead-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
   .eyebrow::before { content: '// '; opacity: 0.7; }
   header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
@@ -382,7 +441,10 @@
 
 <div class="page">
   <header class="masthead">
-    <div class="eyebrow">Unit 1 &middot; Measurement &amp; Estimation</div>
+    <div class="masthead-top">
+      <div class="eyebrow">Unit 1 &middot; Measurement &amp; Estimation</div>
+      <button class="theme-toggle" id="themeToggleBtn" type="button" title="Cycle theme: auto / light / dark">&#9681; Auto</button>
+    </div>
     <h1>Fermi Estimation Lab</h1>
     <p>Break a hard question into a chain of easier guesses, multiply them together, and you'll usually land within a factor of ten of the real answer. Drag any assumption below and watch the estimate update live &mdash; that's the whole method.</p>
   </header>
@@ -441,6 +503,23 @@
 <script>
 (function () {
   "use strict";
+
+  // ============ THEME TOGGLE ============
+  const THEME_KEY = 'physics-tools-theme';
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  function getStoredTheme() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
+  function setStoredTheme(v) { try { if (v === null) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, v); } catch (e) {} }
+  function themeLabel(v) { return v === 'light' ? '☀ Light' : v === 'dark' ? '☾ Dark' : '◑ Auto'; }
+  function updateThemeLabel() { themeToggleBtn.innerHTML = themeLabel(getStoredTheme()); }
+  themeToggleBtn.addEventListener('click', function () {
+    const cur = getStoredTheme();
+    const next = cur === null ? 'light' : cur === 'light' ? 'dark' : null;
+    setStoredTheme(next);
+    if (next) document.documentElement.setAttribute('data-theme', next);
+    else document.documentElement.removeAttribute('data-theme');
+    updateThemeLabel();
+  });
+  updateThemeLabel();
 
   // ============ DATA ============
   // kind: 'estimate' (editable slider) | 'fact' (fixed, shown but not adjustable)

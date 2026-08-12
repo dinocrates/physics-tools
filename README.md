@@ -8,6 +8,11 @@ directly in a browser, or serve the repo with GitHub Pages.
 GitHub Pages should serve as the site root. Tools are numbered in the order they show up in the
 course.
 
+Every page (landing page included) has a light/dark theme toggle in the top-right corner of the
+header. It defaults to following the OS/browser's `prefers-color-scheme`; clicking cycles
+auto → light → dark → auto, and the explicit choice is remembered (via `localStorage`, shared
+across all the tools) until cycled back to auto.
+
 ## Tools
 
 | # | Tool | Unit | Description |

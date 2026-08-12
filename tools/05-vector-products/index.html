@@ -5,8 +5,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vector Products Lab</title>
 <meta name="description" content="See what dot products and cross products actually mean, geometrically — rotate a 3D scene and watch the shadow/projection or the perpendicular result vector update live." />
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('physics-tools-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root {
+    --bg: #F3EEE1;
+    --surface: #FFFFFF;
+    --surface-2: #EAE1C8;
+    --ink: #1B1730;
+    --ink-soft: #4A4368;
+    --ink-faint: #746A9B;
+    --line: #D9CFA8;
+    --line-bright: #4A3B85;
+    --accent: #C81155;
+    --cyan: #037A6E;
+    --gold: #96690A;
+    --positive: #157F3C;
+    --danger: #B7401F;
+    --shadow-color: #000000;
+    --rail-core: #6B4700;
+    --scanline-alpha: 0.045;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0A18;
+      --surface: #17132B;
+      --surface-2: #1F1A3B;
+      --ink: #F4EFE6;
+      --ink-soft: #B7ADD9;
+      --ink-faint: #7B6FA6;
+      --line: #2A2350;
+      --line-bright: #5B4A96;
+      --accent: #FF4D7E;
+      --cyan: #33F1E6;
+      --gold: #FFD84D;
+      --positive: #4ADE80;
+      --danger: #FF6B4A;
+      --rail-core: #FFF6D6;
+      --scanline-alpha: 0.14;
+    }
+  }
+  :root[data-theme="dark"] {
     --bg: #0B0A18;
     --surface: #17132B;
     --surface-2: #1F1A3B;
@@ -20,9 +67,8 @@
     --gold: #FFD84D;
     --positive: #4ADE80;
     --danger: #FF6B4A;
-    --shadow-color: #000000;
-    --notch: 10px;
-    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    --rail-core: #FFF6D6;
+    --scanline-alpha: 0.14;
   }
 
   * { box-sizing: border-box; }
@@ -41,8 +87,8 @@
     inset: 0;
     background: repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.14) 0px,
-      rgba(0, 0, 0, 0.14) 1px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 0px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 1px,
       transparent 1px,
       transparent 3px
     );
@@ -89,6 +135,23 @@
   .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
   .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
 
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
+
   /* ---------- header ---------- */
   header.masthead {
     display: flex;
@@ -97,6 +160,7 @@
     border-bottom: 3px solid var(--line-bright);
     padding-bottom: 1.4rem;
   }
+  .masthead-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
   .eyebrow::before { content: '// '; opacity: 0.7; }
   header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
@@ -154,7 +218,7 @@
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
   .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
-  .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: rgba(255, 77, 126, 0.12); }
+  .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
   .scene-wrap {
     position: relative;
@@ -278,7 +342,10 @@
 
 <div class="page">
   <header class="masthead">
-    <div class="eyebrow">Vectors &middot; Dot &amp; Cross Products</div>
+    <div class="masthead-top">
+      <div class="eyebrow">Vectors &middot; Dot &amp; Cross Products</div>
+      <button class="theme-toggle" id="themeToggleBtn" type="button" title="Cycle theme: auto / light / dark">&#9681; Auto</button>
+    </div>
     <h1>Vector Products Lab</h1>
     <p>Drag the scene to rotate it in 3D, adjust either vector, and watch what a dot product or cross product actually <em>means</em> geometrically &mdash; not just how to compute one.</p>
   </header>
@@ -340,6 +407,24 @@
 <script>
 (function () {
   "use strict";
+
+  // ============ THEME TOGGLE ============
+  const THEME_KEY = 'physics-tools-theme';
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  function getStoredTheme() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
+  function setStoredTheme(v) { try { if (v === null) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, v); } catch (e) {} }
+  function themeLabel(v) { return v === 'light' ? '☀ Light' : v === 'dark' ? '☾ Dark' : '◑ Auto'; }
+  function updateThemeLabel() { themeToggleBtn.innerHTML = themeLabel(getStoredTheme()); }
+  themeToggleBtn.addEventListener('click', function () {
+    const cur = getStoredTheme();
+    const next = cur === null ? 'light' : cur === 'light' ? 'dark' : null;
+    setStoredTheme(next);
+    if (next) document.documentElement.setAttribute('data-theme', next);
+    else document.documentElement.removeAttribute('data-theme');
+    updateThemeLabel();
+    render(); // canvas colors are read at draw time -- repaint with the new theme's tokens
+  });
+  updateThemeLabel();
 
   // ============ VECTOR MATH ============
   function dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
@@ -833,6 +918,14 @@
   function css(varName) {
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   }
+  // theme-aware translucent fills -- reads a token's current hex value so
+  // washes/grid lines stay correct after a light/dark toggle instead of
+  // baking in one theme's RGB numbers
+  function rgbaToken(varName, alpha) {
+    const hex = css(varName).replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
+    return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')';
+  }
 
   function toScreen(p, w, h) {
     const r = rotatePoint(p, yaw, pitch, roll);
@@ -880,7 +973,7 @@
 
   function drawGrid(w, h) {
     const N = 5;
-    const gridColor = 'rgba(91, 74, 150, 0.35)';
+    const gridColor = rgbaToken('--line-bright', 0.35);
     for (let i = -N; i <= N; i++) {
       drawLine({ x: i, y: 0, z: -N }, { x: i, y: 0, z: N }, w, h, gridColor, 1);
       drawLine({ x: -N, y: 0, z: i }, { x: N, y: 0, z: i }, w, h, gridColor, 1);
@@ -909,9 +1002,9 @@
     ctx.moveTo(corners[0].x, corners[0].y);
     for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(255, 216, 77, 0.16)';
+    ctx.fillStyle = rgbaToken('--gold', 0.16);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 216, 77, 0.55)';
+    ctx.strokeStyle = rgbaToken('--gold', 0.55);
     ctx.lineWidth = 1.2;
     ctx.stroke();
     ctx.restore();
@@ -938,7 +1031,7 @@
     ctx.save();
     ctx.lineCap = 'round';
     // soft outer glow
-    ctx.strokeStyle = 'rgba(255, 216, 77, 0.4)';
+    ctx.strokeStyle = rgbaToken('--gold', 0.4);
     ctx.lineWidth = 3;
     ctx.shadowColor = gold;
     ctx.shadowBlur = 13;
@@ -946,9 +1039,10 @@
     ctx.moveTo(s1.x, s1.y);
     ctx.lineTo(s2.x, s2.y);
     ctx.stroke();
-    // bright sunlit core
+    // bright sunlit core -- warm near-white on dark, deep saturated amber on
+    // light (the "hottest" version of the hue in either direction)
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255, 246, 214, 0.95)';
+    ctx.strokeStyle = rgbaToken('--rail-core', 0.95);
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(s1.x, s1.y);
@@ -965,8 +1059,11 @@
     // a dark, faintly sign-tinted version of shadowColor -- dim enough to read
     // as an actual shadow (not a highlight), with just enough color left to
     // hint positive/negative on close inspection; the landing marker and the
-    // readouts below carry the rest of that signal
-    const shadowFill = positive ? 'rgba(22, 46, 32, 0.94)' : negative ? 'rgba(48, 22, 18, 0.94)' : 'rgba(11, 10, 24, 0.94)';
+    // readouts below carry the rest of that signal. Positive/negative stay
+    // fixed near-black in both themes (a shadow reads as dark regardless of
+    // page theme); the neutral case matches the current --bg instead, so a
+    // near-zero dot product still blends away to "no shadow" in light mode too.
+    const shadowFill = positive ? 'rgba(22, 46, 32, 0.94)' : negative ? 'rgba(48, 22, 18, 0.94)' : rgbaToken('--bg', 0.94);
 
     // the shadow itself: a dark gap punched through the lit rail, from the
     // origin to where A's tip blocks the light and casts onto B

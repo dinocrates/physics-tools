@@ -5,8 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vector Addition Lab</title>
 <meta name="description" content="See how vector components add together to build a resultant vector, in 2D, in 3D, and broken into i-j-k notation — drag magnitude/angle or x/y/z, and watch the components sum." />
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('physics-tools-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root {
+    --bg: #F3EEE1;
+    --surface: #FFFFFF;
+    --surface-2: #EAE1C8;
+    --ink: #1B1730;
+    --ink-soft: #4A4368;
+    --ink-faint: #746A9B;
+    --line: #D9CFA8;
+    --line-bright: #4A3B85;
+    --accent: #C81155;
+    --cyan: #037A6E;
+    --gold: #96690A;
+    --shadow-color: #000000;
+    --scanline-alpha: 0.045;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0A18;
+      --surface: #17132B;
+      --surface-2: #1F1A3B;
+      --ink: #F4EFE6;
+      --ink-soft: #B7ADD9;
+      --ink-faint: #7B6FA6;
+      --line: #2A2350;
+      --line-bright: #5B4A96;
+      --accent: #FF4D7E;
+      --cyan: #33F1E6;
+      --gold: #FFD84D;
+      --scanline-alpha: 0.14;
+    }
+  }
+  :root[data-theme="dark"] {
     --bg: #0B0A18;
     --surface: #17132B;
     --surface-2: #1F1A3B;
@@ -18,9 +59,7 @@
     --accent: #FF4D7E;
     --cyan: #33F1E6;
     --gold: #FFD84D;
-    --shadow-color: #000000;
-    --notch: 10px;
-    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    --scanline-alpha: 0.14;
   }
 
   * { box-sizing: border-box; }
@@ -39,8 +78,8 @@
     inset: 0;
     background: repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.14) 0px,
-      rgba(0, 0, 0, 0.14) 1px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 0px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 1px,
       transparent 1px,
       transparent 3px
     );
@@ -87,6 +126,23 @@
   .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
   .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
 
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
+
   /* ---------- header ---------- */
   header.masthead {
     display: flex;
@@ -95,6 +151,7 @@
     border-bottom: 3px solid var(--line-bright);
     padding-bottom: 1.4rem;
   }
+  .masthead-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
   .eyebrow::before { content: '// '; opacity: 0.7; }
   header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
@@ -153,7 +210,7 @@
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
   .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
-  .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: rgba(255, 77, 126, 0.12); }
+  .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
   .scene-wrap {
     position: relative;
@@ -309,7 +366,10 @@
 
 <div class="page">
   <header class="masthead">
-    <div class="eyebrow">Vectors &middot; Component Addition</div>
+    <div class="masthead-top">
+      <div class="eyebrow">Vectors &middot; Component Addition</div>
+      <button class="theme-toggle" id="themeToggleBtn" type="button" title="Cycle theme: auto / light / dark">&#9681; Auto</button>
+    </div>
     <h1>Vector Addition Lab</h1>
     <p id="introText">Every vector breaks into an x-part and a y-part. Adding two vectors is just adding those parts separately &mdash; drag magnitude and angle, and watch A and B's components sum into the resultant, both in the numbers and on the graph.</p>
   </header>
@@ -447,6 +507,24 @@
 <script>
 (function () {
   "use strict";
+
+  // ============ THEME TOGGLE ============
+  const THEME_KEY = 'physics-tools-theme';
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  function getStoredTheme() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
+  function setStoredTheme(v) { try { if (v === null) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, v); } catch (e) {} }
+  function themeLabel(v) { return v === 'light' ? '☀ Light' : v === 'dark' ? '☾ Dark' : '◑ Auto'; }
+  function updateThemeLabel() { themeToggleBtn.innerHTML = themeLabel(getStoredTheme()); }
+  themeToggleBtn.addEventListener('click', function () {
+    const cur = getStoredTheme();
+    const next = cur === null ? 'light' : cur === 'light' ? 'dark' : null;
+    setStoredTheme(next);
+    if (next) document.documentElement.setAttribute('data-theme', next);
+    else document.documentElement.removeAttribute('data-theme');
+    updateThemeLabel();
+    render(); // canvas colors are read at draw time -- repaint with the new theme's tokens
+  });
+  updateThemeLabel();
 
   // ============ MATH: 2D ============
   function comps2(v) {
@@ -802,6 +880,14 @@
   function css(varName) {
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   }
+  // theme-aware translucent fills -- reads a token's current hex value so
+  // washes/grid lines stay correct after a light/dark toggle instead of
+  // baking in one theme's RGB numbers
+  function rgbaToken(varName, alpha) {
+    const hex = css(varName).replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
+    return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')';
+  }
 
   // ---- 2D projection (fit-to-content: scale + pan, recomputed every frame) ----
   const MARGIN_PX = 46, MIN_SPAN_2D = 3, MIN_SCALE_2D = 10, MAX_SCALE_2D = 90;
@@ -910,7 +996,7 @@
   }
 
   function drawGrid2D(w, h) {
-    const gridColor = 'rgba(91, 74, 150, 0.28)';
+    const gridColor = rgbaToken('--line-bright', 0.28);
     const step = 1;
     const left = fit2.cx - (w / 2) / fit2.scale, right = fit2.cx + (w / 2) / fit2.scale;
     const top = fit2.cy + (h / 2) / fit2.scale, bottom = fit2.cy - (h / 2) / fit2.scale;
@@ -943,8 +1029,8 @@
     if (showParallelogram) {
       drawArrow(O2, Bc, w, h, accent, undefined, 0.3, 2);
       drawArrow(Bc, R, w, h, cyan, undefined, 0.3, 2);
-      drawLine(Ac, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
-      drawLine(Bc, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
+      drawLine(Ac, R, w, h, rgbaToken('--gold', 0.25), 1, [3, 4]);
+      drawLine(Bc, R, w, h, rgbaToken('--gold', 0.25), 1, [3, 4]);
     }
 
     drawArrow(O2, Ac, w, h, cyan, 'A');
@@ -957,7 +1043,7 @@
   // ============ DRAWING: 3D TAB ============
   function drawGrid3D(w, h) {
     const N = 5;
-    const gridColor = 'rgba(91, 74, 150, 0.28)';
+    const gridColor = rgbaToken('--line-bright', 0.28);
     for (let i = -N; i <= N; i++) {
       drawLine({ x: i, y: 0, z: -N }, { x: i, y: 0, z: N }, w, h, gridColor, 1);
       drawLine({ x: -N, y: 0, z: i }, { x: N, y: 0, z: i }, w, h, gridColor, 1);
@@ -1002,8 +1088,8 @@
     if (showParallelogram) {
       drawArrow(O3, B3, w, h, accent, undefined, 0.3, 2);
       drawArrow(B3, R, w, h, cyan, undefined, 0.3, 2);
-      drawLine(A3, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
-      drawLine(B3, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
+      drawLine(A3, R, w, h, rgbaToken('--gold', 0.25), 1, [3, 4]);
+      drawLine(B3, R, w, h, rgbaToken('--gold', 0.25), 1, [3, 4]);
     }
 
     drawArrow(O3, A3, w, h, cyan, 'A');
