@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Uncertainty &amp; Error Analysis Lab</title>
+<meta name="description" content="See how error bars actually work: watch them shrink as you take more measurements, compare two results to see if they agree, and propagate uncertainty through a calculation." />
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('physics-tools-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<style>
+  :root {
+    --bg: #F3EEE1;
+    --surface: #FFFFFF;
+    --surface-2: #EAE1C8;
+    --ink: #1B1730;
+    --ink-soft: #4A4368;
+    --ink-faint: #746A9B;
+    --line: #D9CFA8;
+    --line-bright: #4A3B85;
+    --accent: #C81155;
+    --cyan: #037A6E;
+    --gold: #96690A;
+    --positive: #157F3C;
+    --danger: #B7401F;
+    --shadow-color: #000000;
+    --scanline-alpha: 0.045;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0A18;
+      --surface: #17132B;
+      --surface-2: #1F1A3B;
+      --ink: #F4EFE6;
+      --ink-soft: #B7ADD9;
+      --ink-faint: #7B6FA6;
+      --line: #2A2350;
+      --line-bright: #5B4A96;
+      --accent: #FF4D7E;
+      --cyan: #33F1E6;
+      --gold: #FFD84D;
+      --positive: #4ADE80;
+      --danger: #FF6B4A;
+      --scanline-alpha: 0.14;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B0A18;
+    --surface: #17132B;
+    --surface-2: #1F1A3B;
+    --ink: #F4EFE6;
+    --ink-soft: #B7ADD9;
+    --ink-faint: #7B6FA6;
+    --line: #2A2350;
+    --line-bright: #5B4A96;
+    --accent: #FF4D7E;
+    --cyan: #33F1E6;
+    --gold: #FFD84D;
+    --positive: #4ADE80;
+    --danger: #FF6B4A;
+    --scanline-alpha: 0.14;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    padding: 2.25rem 1.25rem 4rem;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, var(--scanline-alpha)) 0px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.85rem;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 2px;
+  }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  /* ---------- 8-bit panel utility ---------- */
+  .panel-8bit { position: relative; z-index: 0; }
+  .panel-8bit::before, .panel-8bit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+  }
+  .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
+  .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 3px solid var(--line-bright);
+    padding-bottom: 1.4rem;
+  }
+  .masthead-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+  .eyebrow::before { content: '// '; opacity: 0.7; }
+  header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
+  header.masthead p {
+    margin: 0.3rem 0 0; color: var(--ink-soft); max-width: 68ch; font-size: 0.92rem;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
+
+  /* ---------- mode switcher ---------- */
+  .mode-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .chip {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip:active { transform: translate(3px, 3px); box-shadow: none; }
+  .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
+
+  /* ---------- viewport ---------- */
+  .viewport-panel { padding: 0.9rem; }
+  .viewport-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .viewport-hint { font-size: 0.76rem; color: var(--ink-faint); }
+  .viewport-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .btn-ghost {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
+  .btn-primary {
+    flex: none;
+    background: var(--accent);
+    color: #fff;
+    border: 3px solid var(--bg);
+    border-radius: 0;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-primary:hover { filter: brightness(1.12); }
+  .btn-primary:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  .scene-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: var(--bg);
+    border: 2px solid var(--line-bright);
+    overflow: hidden;
+  }
+  .scene-wrap canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---------- input cards ---------- */
+  .cards-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+  }
+  .input-card { padding: 1.1rem 1.2rem 1.2rem; }
+  .input-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+  }
+  .input-name { font-size: 1rem; font-weight: 700; }
+  .input-sub { font-size: 0.78rem; color: var(--ink-faint); }
+  .comp-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .comp-row:last-child { margin-bottom: 0; }
+  .comp-label { flex: none; width: 4.4rem; font-size: 0.72rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  input[type="range"].comp-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 0.4rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    cursor: pointer;
+  }
+  input[type="range"].comp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.9rem;
+    height: 1.3rem;
+    background: var(--thumb-color, var(--cyan));
+    border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color);
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"].comp-slider::-moz-range-thumb {
+    width: 0.9rem; height: 1.3rem; background: var(--thumb-color, var(--cyan)); border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color); cursor: pointer; border-radius: 0;
+  }
+  input.comp-value {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.28rem 0.4rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--ink);
+    width: 4.1rem;
+    text-align: right;
+    flex: none;
+  }
+
+  /* ---------- readouts / formula panel ---------- */
+  .readout-panel { padding: 1.2rem 1.4rem 1.4rem; }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 1.1rem;
+  }
+  .stat-item { display: flex; flex-direction: column; gap: 0.25rem; }
+  .stat-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-faint); font-weight: 700; }
+  .stat-value { font-size: 1rem; font-weight: 700; color: var(--ink); }
+  .stat-value.accent-gold { color: var(--gold); }
+  .stat-value.accent-positive { color: var(--positive); }
+  .stat-value.accent-danger { color: var(--danger); }
+
+  .verdict-banner {
+    padding: 0.9rem 1.1rem;
+    border: 2px dashed var(--line-bright);
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+  .verdict-banner .vb-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.35rem; }
+  .verdict-banner .vb-value { font-size: 1.5rem; font-weight: 700; text-shadow: 2px 2px 0 var(--shadow-color); }
+  .verdict-banner .vb-value.accent-positive { color: var(--positive); }
+  .verdict-banner .vb-value.accent-gold { color: var(--gold); }
+  .verdict-banner .vb-value.accent-danger { color: var(--danger); }
+
+  .trig-panel {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    padding: 0.9rem 1.05rem;
+    margin-bottom: 1.1rem;
+  }
+  .trig-group-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.4rem; }
+  .trig-group-label:not(:first-child) { margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px dashed var(--line-bright); }
+  .trig-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; font-size: 0.9rem; padding: 0.15rem 0; }
+  .trig-lhs { color: var(--ink-soft); flex: none; }
+  .trig-eq { color: var(--gold); font-weight: 700; }
+
+  .explain-text { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; }
+  .explain-text strong { color: var(--ink); }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    padding-top: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+  footer::after { content: '_'; color: var(--cyan); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    footer::after { animation: none; opacity: 1; }
+    .chip, .btn-ghost, .btn-primary { transition: none; }
+  }
+
+  @media (max-width: 640px) {
+    header.masthead h1 { font-size: 1.6rem; }
+    .cards-row { grid-template-columns: 1fr; }
+    .verdict-banner .vb-value { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-top">
+      <div class="eyebrow">Unit 1 &middot; Measurement &amp; Uncertainty</div>
+      <button class="theme-toggle" id="themeToggleBtn" type="button" title="Cycle theme: auto / light / dark">&#9681; Auto</button>
+    </div>
+    <h1>Uncertainty &amp; Error Analysis Lab</h1>
+    <p id="introText">Every measurement comes with an uncertainty. An error bar is just that uncertainty, drawn: the range of values you can't rule out. Take a few (simulated) measurements and watch the bar around your best estimate shrink.</p>
+  </header>
+
+  <div class="mode-chips" id="viewChips" role="group" aria-label="Which idea to explore"></div>
+
+  <section class="viewport-panel panel-8bit" aria-label="Diagram">
+    <div class="viewport-toolbar">
+      <div class="viewport-hint" id="viewportHint">Each dot is one (simulated) stopwatch trial</div>
+      <div class="viewport-actions" id="viewportActions">
+        <button class="btn-ghost" id="resetBtn" type="button">&#8635; Reset</button>
+        <button class="btn-primary" id="addBtn" type="button">&#9654; Take a measurement</button>
+      </div>
+    </div>
+    <div class="scene-wrap" id="sceneWrap">
+      <canvas id="scene"></canvas>
+    </div>
+  </section>
+
+  <section class="cards-row" id="cardsRow1">
+    <div class="input-card panel-8bit">
+      <div class="input-card-head">
+        <span class="input-name" style="color:var(--cyan);">Instrument noise</span>
+        <span class="input-sub mono" id="sigmaReadout"></span>
+      </div>
+      <div class="comp-row"><span class="comp-label">&sigma;</span><input type="range" class="comp-slider" id="sigmaSlider" style="--thumb-color:var(--cyan);" min="0.02" max="0.30" step="0.01" /><input type="text" class="comp-value mono" id="sigmaValue" /></div>
+    </div>
+    <div class="input-card panel-8bit">
+      <div class="input-card-head">
+        <span class="input-name" style="color:var(--gold);">True period</span>
+        <span class="input-sub mono" id="trueReadout"></span>
+      </div>
+      <p class="explain-text" style="margin:0;">Fixed at 2.00 s, and shown here only because this is a teaching demo &mdash; in a real experiment you'd never see this line. It's what your growing estimate is chasing.</p>
+    </div>
+  </section>
+
+  <section class="cards-row" id="cardsRow2" style="display:none;">
+    <div class="input-card panel-8bit">
+      <div class="input-card-head">
+        <span class="input-name" style="color:var(--cyan);" id="cardALabel">Your result</span>
+        <span class="input-sub mono" id="compsA"></span>
+      </div>
+      <div class="comp-row"><span class="comp-label" id="rowALabel1">value</span><input type="range" class="comp-slider" id="aValSlider" style="--thumb-color:var(--cyan);" /><input type="text" class="comp-value mono" id="aValValue" /></div>
+      <div class="comp-row"><span class="comp-label" id="rowALabel2">&plusmn;</span><input type="range" class="comp-slider" id="aErrSlider" style="--thumb-color:var(--cyan);" /><input type="text" class="comp-value mono" id="aErrValue" /></div>
+    </div>
+    <div class="input-card panel-8bit">
+      <div class="input-card-head">
+        <span class="input-name" style="color:var(--accent);" id="cardBLabel">Accepted value</span>
+        <span class="input-sub mono" id="compsB"></span>
+      </div>
+      <div class="comp-row"><span class="comp-label" id="rowBLabel1">value</span><input type="range" class="comp-slider" id="bValSlider" style="--thumb-color:var(--accent);" /><input type="text" class="comp-value mono" id="bValValue" /></div>
+      <div class="comp-row"><span class="comp-label" id="rowBLabel2">&plusmn;</span><input type="range" class="comp-slider" id="bErrSlider" style="--thumb-color:var(--accent);" /><input type="text" class="comp-value mono" id="bErrValue" /></div>
+    </div>
+  </section>
+
+  <section class="readout-panel panel-8bit" aria-label="Results" id="readoutPanel1">
+    <div class="stat-grid">
+      <div class="stat-item"><span class="stat-label">Measurements (N)</span><span class="stat-value mono" id="statN">0</span></div>
+      <div class="stat-item"><span class="stat-label">Mean x&#772;</span><span class="stat-value mono" id="statMean">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Sample std dev s</span><span class="stat-value mono" id="statStddev">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Std error of mean</span><span class="stat-value mono accent-gold" id="statSem">&mdash;</span></div>
+    </div>
+    <div class="trig-panel" id="trigPanel1">
+      <div class="trig-group-label">The error bar you'd report</div>
+      <div class="trig-row"><span class="trig-lhs">SEM = s / &radic;N =</span><span class="trig-eq mono" id="trigSem">&mdash;</span></div>
+    </div>
+    <p class="explain-text" id="explainText1"></p>
+  </section>
+
+  <section class="readout-panel panel-8bit" aria-label="Comparison" id="readoutPanel2" style="display:none;">
+    <div class="verdict-banner">
+      <div class="vb-label">Do these measurements agree?</div>
+      <div class="vb-value mono" id="verdictValue">&mdash;</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-item"><span class="stat-label">|A &minus; B|</span><span class="stat-value mono" id="statDiff">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Combined uncertainty</span><span class="stat-value mono" id="statCombined">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Separation (z)</span><span class="stat-value mono accent-gold" id="statZ">&mdash;</span></div>
+    </div>
+    <div class="trig-panel">
+      <div class="trig-group-label">How far apart, in combined sigmas</div>
+      <div class="trig-row"><span class="trig-lhs">combined = &radic;(&delta;A&sup2; + &delta;B&sup2;) =</span><span class="trig-eq mono" id="trigCombined">&mdash;</span></div>
+      <div class="trig-row"><span class="trig-lhs">z = |A&minus;B| / combined =</span><span class="trig-eq mono" id="trigZ">&mdash;</span></div>
+    </div>
+    <p class="explain-text" id="explainText2"></p>
+  </section>
+
+  <section class="readout-panel panel-8bit" aria-label="Propagated result" id="readoutPanel3" style="display:none;">
+    <div class="verdict-banner">
+      <div class="vb-label" id="resultLabel3">Result</div>
+      <div class="vb-value mono" id="resultValue3">&mdash;</div>
+    </div>
+    <div class="trig-panel" id="trigPanel3"></div>
+    <p class="explain-text" id="explainText3"></p>
+  </section>
+
+  <footer>Drag the sliders &mdash; the error bar always reflects exactly what you gave it</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ THEME TOGGLE ============
+  const THEME_KEY = 'physics-tools-theme';
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  function getStoredTheme() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
+  function setStoredTheme(v) { try { if (v === null) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, v); } catch (e) {} }
+  function themeLabel(v) { return v === 'light' ? '☀ Light' : v === 'dark' ? '☾ Dark' : '◑ Auto'; }
+  function updateThemeLabel() { themeToggleBtn.innerHTML = themeLabel(getStoredTheme()); }
+  themeToggleBtn.addEventListener('click', function () {
+    const cur = getStoredTheme();
+    const next = cur === null ? 'light' : cur === 'light' ? 'dark' : null;
+    setStoredTheme(next);
+    if (next) document.documentElement.setAttribute('data-theme', next);
+    else document.documentElement.removeAttribute('data-theme');
+    updateThemeLabel();
+    render();
+  });
+  updateThemeLabel();
+
+  // ============ MATH ============
+  function mean(arr) { return arr.reduce(function (a, b) { return a + b; }, 0) / arr.length; }
+  function stats(values) {
+    const n = values.length;
+    const m = n > 0 ? mean(values) : null;
+    if (n < 2) return { n: n, mean: m, stddev: null, sem: null };
+    const variance = values.reduce(function (a, b) { return a + (b - m) * (b - m); }, 0) / (n - 1);
+    const stddev = Math.sqrt(variance);
+    return { n: n, mean: m, stddev: stddev, sem: stddev / Math.sqrt(n) };
+  }
+  function gaussianRandom(m, sd) {
+    let u1 = Math.random();
+    while (u1 <= 1e-12) u1 = Math.random();
+    const u2 = Math.random();
+    return m + sd * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  }
+  function gaussianPdf(x, m, sd) {
+    return Math.exp(-((x - m) * (x - m)) / (2 * sd * sd)) / (sd * Math.sqrt(2 * Math.PI));
+  }
+
+  // ============ FORMATTING ============
+  function fmt(n, decimals) {
+    if (n === null || n === undefined || !isFinite(n)) return '—';
+    const d = decimals === undefined ? 2 : decimals;
+    let s = n.toFixed(d);
+    if (s === '-0.00' || s === '-0.0' || s === '-0') s = s.slice(1);
+    return s;
+  }
+
+  // ============ STATE ============
+  let view = 'repeat'; // 'repeat' | 'compare' | 'propagate'
+  const TRUE_VALUE = 2.00;
+  let sigma = 0.12;
+  let measurements = []; // [{ value, dropProgress, start }]
+
+  let A = { val: 1.95, err: 0.08 };
+  let B = { val: 2.00, err: 0.03 };
+
+  let opA = { val: 4.0, err: 0.2 };
+  let opB = { val: 2.0, err: 0.15 };
+  let operation = '+';
+
+  // ============ DOM ============
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const sceneWrap = document.getElementById('sceneWrap');
+  const introText = document.getElementById('introText');
+  const viewChipsHost = document.getElementById('viewChips');
+  const viewportHint = document.getElementById('viewportHint');
+  const viewportActions = document.getElementById('viewportActions');
+  const resetBtn = document.getElementById('resetBtn');
+  const addBtn = document.getElementById('addBtn');
+  const cardsRow1 = document.getElementById('cardsRow1');
+  const cardsRow2 = document.getElementById('cardsRow2');
+  const readoutPanel1 = document.getElementById('readoutPanel1');
+  const readoutPanel2 = document.getElementById('readoutPanel2');
+  const readoutPanel3 = document.getElementById('readoutPanel3');
+
+  const sigmaSlider = document.getElementById('sigmaSlider');
+  const sigmaValue = document.getElementById('sigmaValue');
+  const sigmaReadout = document.getElementById('sigmaReadout');
+  const trueReadout = document.getElementById('trueReadout');
+  trueReadout.textContent = fmt(TRUE_VALUE) + ' s';
+
+  const statN = document.getElementById('statN');
+  const statMean = document.getElementById('statMean');
+  const statStddev = document.getElementById('statStddev');
+  const statSem = document.getElementById('statSem');
+  const trigSem = document.getElementById('trigSem');
+  const explainText1 = document.getElementById('explainText1');
+
+  const cardALabel = document.getElementById('cardALabel');
+  const cardBLabel = document.getElementById('cardBLabel');
+  const rowALabel1 = document.getElementById('rowALabel1');
+  const rowALabel2 = document.getElementById('rowALabel2');
+  const rowBLabel1 = document.getElementById('rowBLabel1');
+  const rowBLabel2 = document.getElementById('rowBLabel2');
+  const compsA = document.getElementById('compsA');
+  const compsB = document.getElementById('compsB');
+  const aValSlider = document.getElementById('aValSlider'), aValValue = document.getElementById('aValValue');
+  const aErrSlider = document.getElementById('aErrSlider'), aErrValue = document.getElementById('aErrValue');
+  const bValSlider = document.getElementById('bValSlider'), bValValue = document.getElementById('bValValue');
+  const bErrSlider = document.getElementById('bErrSlider'), bErrValue = document.getElementById('bErrValue');
+
+  const verdictValue = document.getElementById('verdictValue');
+  const statDiff = document.getElementById('statDiff');
+  const statCombined = document.getElementById('statCombined');
+  const statZ = document.getElementById('statZ');
+  const trigCombined = document.getElementById('trigCombined');
+  const trigZ = document.getElementById('trigZ');
+  const explainText2 = document.getElementById('explainText2');
+
+  const resultLabel3 = document.getElementById('resultLabel3');
+  const resultValue3 = document.getElementById('resultValue3');
+  const trigPanel3 = document.getElementById('trigPanel3');
+  const explainText3 = document.getElementById('explainText3');
+
+  // ============ VIEW TABS ============
+  const VIEWS = [
+    { id: 'repeat', label: 'Repeated Measurements' },
+    { id: 'compare', label: 'Comparing Results' },
+    { id: 'propagate', label: 'Propagating Uncertainty' },
+  ];
+  const viewChipEls = VIEWS.map(function (v) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = v.label;
+    chip.addEventListener('click', function () { setView(v.id); });
+    viewChipsHost.appendChild(chip);
+    return chip;
+  });
+  function updateViewChips() {
+    viewChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', VIEWS[i].id === view); });
+  }
+
+  const VIEW_COPY = {
+    repeat: {
+      intro: "Every measurement comes with an uncertainty. An error bar is just that uncertainty, drawn: the range of values you can't rule out. Take a few (simulated) measurements and watch the bar around your best estimate shrink.",
+      hint: 'Each dot is one (simulated) stopwatch trial',
+    },
+    compare: {
+      intro: 'Error bars exist to answer one question: do two measurements actually disagree, or is the difference between them just noise? Drag either result and watch the verdict change.',
+      hint: 'Overlapping error bars usually mean "consistent," not "wrong"',
+    },
+    propagate: {
+      intro: 'When you compute something from measured quantities, its uncertainty depends on theirs. Adding or subtracting: absolute uncertainties combine in quadrature. Multiplying or dividing: relative uncertainties do.',
+      hint: 'Pick an operation and drag either quantity',
+    },
+  };
+
+  function setView(v) {
+    if (v === view) return;
+    view = v;
+    updateViewChips();
+    updateUIForView();
+    render();
+  }
+  function updateUIForView() {
+    const isRepeat = view === 'repeat', isCompare = view === 'compare', isPropagate = view === 'propagate';
+    introText.textContent = VIEW_COPY[view].intro;
+    viewportHint.textContent = VIEW_COPY[view].hint;
+    viewportActions.style.display = isRepeat ? '' : 'none';
+    cardsRow1.style.display = isRepeat ? '' : 'none';
+    cardsRow2.style.display = (isCompare || isPropagate) ? '' : 'none';
+    readoutPanel1.style.display = isRepeat ? '' : 'none';
+    readoutPanel2.style.display = isCompare ? '' : 'none';
+    readoutPanel3.style.display = isPropagate ? '' : 'none';
+
+    if (isCompare) {
+      cardALabel.textContent = 'Your result';
+      cardBLabel.textContent = 'Accepted value';
+      rowALabel1.textContent = 'value';
+      rowALabel2.textContent = '± unc.';
+      rowBLabel1.textContent = 'value';
+      rowBLabel2.textContent = '± unc.';
+      aValSlider.min = 1.5; aValSlider.max = 2.5; aValSlider.step = 0.01;
+      aErrSlider.min = 0.02; aErrSlider.max = 0.5; aErrSlider.step = 0.01;
+      bValSlider.min = 1.5; bValSlider.max = 2.5; bValSlider.step = 0.01;
+      bErrSlider.min = 0.01; bErrSlider.max = 0.3; bErrSlider.step = 0.01;
+      syncPair(aValSlider, aValValue, A, 'val', 2);
+      syncPair(aErrSlider, aErrValue, A, 'err', 2);
+      syncPair(bValSlider, bValValue, B, 'val', 2);
+      syncPair(bErrSlider, bErrValue, B, 'err', 2);
+    } else if (isPropagate) {
+      cardALabel.textContent = 'Quantity A';
+      cardBLabel.textContent = 'Quantity B';
+      rowALabel1.textContent = 'value';
+      rowALabel2.textContent = '± unc.';
+      rowBLabel1.textContent = 'value';
+      rowBLabel2.textContent = '± unc.';
+      aValSlider.min = 0.5; aValSlider.max = 10; aValSlider.step = 0.1;
+      aErrSlider.min = 0.05; aErrSlider.max = 2; aErrSlider.step = 0.05;
+      bValSlider.min = 0.5; bValSlider.max = 10; bValSlider.step = 0.1;
+      bErrSlider.min = 0.05; bErrSlider.max = 2; bErrSlider.step = 0.05;
+      syncPair(aValSlider, aValValue, opA, 'val', 2);
+      syncPair(aErrSlider, aErrValue, opA, 'err', 2);
+      syncPair(bValSlider, bValValue, opB, 'val', 2);
+      syncPair(bErrSlider, bErrValue, opB, 'err', 2);
+      ensureOpChips();
+    }
+  }
+  function syncPair(slider, textInput, obj, key, decimals) {
+    slider.value = String(obj[key]);
+    textInput.value = fmt(obj[key], decimals);
+  }
+
+  // ---- operation chips (propagate tab), created lazily above the op cards ----
+  let opChipsHost = null;
+  function ensureOpChips() {
+    if (opChipsHost) { updateOpChips(); return; }
+    opChipsHost = document.createElement('div');
+    opChipsHost.className = 'mode-chips';
+    opChipsHost.setAttribute('role', 'group');
+    opChipsHost.setAttribute('aria-label', 'Operation');
+    opChipsHost.style.marginBottom = '1.2rem';
+    const ops = [{ id: '+', label: 'A + B' }, { id: '-', label: 'A − B' }, { id: '*', label: 'A × B' }, { id: '/', label: 'A / B' }];
+    ops.forEach(function (o) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.textContent = o.label;
+      chip.addEventListener('click', function () { operation = o.id; updateOpChips(); render(); });
+      opChipsHost.appendChild(chip);
+    });
+    cardsRow2.parentNode.insertBefore(opChipsHost, cardsRow2);
+    updateOpChips();
+  }
+  function updateOpChips() {
+    Array.prototype.forEach.call(opChipsHost.children, function (chip, i) {
+      const ids = ['+', '-', '*', '/'];
+      chip.classList.toggle('is-active', ids[i] === operation);
+    });
+  }
+
+  // ============ SLIDER BINDING ============
+  function bindComponent(sliderId, valueId, vec, key, decimals, onChange) {
+    const slider = document.getElementById(sliderId);
+    const value = document.getElementById(valueId);
+    slider.addEventListener('input', function () {
+      vec[key] = parseFloat(slider.value);
+      value.value = fmt(vec[key], decimals);
+      onChange();
+    });
+    value.addEventListener('change', function () {
+      const parsed = parseFloat(value.value);
+      if (!isNaN(parsed)) {
+        const min = parseFloat(slider.min), max = parseFloat(slider.max);
+        vec[key] = Math.max(min, Math.min(max, parsed));
+        slider.value = String(vec[key]);
+      }
+      value.value = fmt(vec[key], decimals);
+      onChange();
+    });
+  }
+  function currentAObj() { return view === 'compare' ? A : opA; }
+  function currentBObj() { return view === 'compare' ? B : opB; }
+  bindComponent('aValSlider', 'aValValue', new Proxy({}, {
+    get: function (t, k) { return currentAObj()[k]; },
+    set: function (t, k, v) { currentAObj()[k] = v; return true; },
+  }), 'val', 2, render);
+  bindComponent('aErrSlider', 'aErrValue', new Proxy({}, {
+    get: function (t, k) { return currentAObj()[k]; },
+    set: function (t, k, v) { currentAObj()[k] = v; return true; },
+  }), 'err', 2, render);
+  bindComponent('bValSlider', 'bValValue', new Proxy({}, {
+    get: function (t, k) { return currentBObj()[k]; },
+    set: function (t, k, v) { currentBObj()[k] = v; return true; },
+  }), 'val', 2, render);
+  bindComponent('bErrSlider', 'bErrValue', new Proxy({}, {
+    get: function (t, k) { return currentBObj()[k]; },
+    set: function (t, k, v) { currentBObj()[k] = v; return true; },
+  }), 'err', 2, render);
+
+  sigmaSlider.addEventListener('input', function () {
+    sigma = parseFloat(sigmaSlider.value);
+    sigmaValue.value = fmt(sigma, 2);
+    render();
+  });
+  sigmaValue.addEventListener('change', function () {
+    const parsed = parseFloat(sigmaValue.value);
+    if (!isNaN(parsed)) { sigma = Math.max(0.02, Math.min(0.30, parsed)); sigmaSlider.value = String(sigma); }
+    sigmaValue.value = fmt(sigma, 2);
+    render();
+  });
+  sigmaSlider.value = String(sigma);
+  sigmaValue.value = fmt(sigma, 2);
+
+  // ============ ADD MEASUREMENT (animated drop, single shared rAF loop) ============
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let dropLoopActive = false;
+  function addMeasurement() {
+    const v = gaussianRandom(TRUE_VALUE, sigma);
+    measurements.push({ value: v, dropProgress: reduceMotion ? 1 : 0, start: null });
+    if (!reduceMotion && !dropLoopActive) { dropLoopActive = true; requestAnimationFrame(tickDrops); }
+    render();
+  }
+  function tickDrops(ts) {
+    let anyActive = false;
+    measurements.forEach(function (m) {
+      if (m.dropProgress < 1) {
+        if (m.start === null) m.start = ts;
+        m.dropProgress = Math.min(1, (ts - m.start) / 450);
+        if (m.dropProgress < 1) anyActive = true;
+      }
+    });
+    drawScene();
+    if (anyActive) requestAnimationFrame(tickDrops);
+    else dropLoopActive = false;
+  }
+  addBtn.addEventListener('click', addMeasurement);
+  resetBtn.addEventListener('click', function () {
+    measurements = [];
+    dropLoopActive = false;
+    render();
+  });
+
+  // ============ CANVAS SIZING ============
+  function resizeCanvas() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ============ DRAWING HELPERS ============
+  function css(varName) { return getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); }
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function drawErrorWhisker(ctx2, x, y, halfWidthPx, color, lineWidth, capHeight) {
+    ctx2.save();
+    ctx2.strokeStyle = color;
+    ctx2.lineWidth = lineWidth || 2.5;
+    ctx2.lineCap = 'round';
+    ctx2.beginPath();
+    ctx2.moveTo(x - halfWidthPx, y);
+    ctx2.lineTo(x + halfWidthPx, y);
+    ctx2.stroke();
+    const cap = capHeight === undefined ? 7 : capHeight;
+    if (cap > 0) {
+      ctx2.beginPath();
+      ctx2.moveTo(x - halfWidthPx, y - cap); ctx2.lineTo(x - halfWidthPx, y + cap);
+      ctx2.moveTo(x + halfWidthPx, y - cap); ctx2.lineTo(x + halfWidthPx, y + cap);
+      ctx2.stroke();
+    }
+    ctx2.restore();
+  }
+
+  // ============ DRAWING: REPEATED MEASUREMENTS ============
+  function drawScene1(w, h) {
+    const domainMin = TRUE_VALUE - 4 * 0.30 - 0.05;
+    const domainMax = TRUE_VALUE + 4 * 0.30 + 0.05;
+    const marginX = 46;
+    const toX = function (v) { return marginX + ((v - domainMin) / (domainMax - domainMin)) * (w - marginX * 2); };
+
+    const axisColor = css('--ink-faint');
+    const axisY = h * 0.62;
+    ctx.save();
+    ctx.strokeStyle = axisColor;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(marginX, axisY);
+    ctx.lineTo(w - marginX, axisY);
+    ctx.stroke();
+    // ticks every 0.2 s
+    ctx.font = '700 10px ' + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = axisColor;
+    for (let t = Math.ceil(domainMin / 0.2) * 0.2; t <= domainMax; t += 0.2) {
+      const x = toX(t);
+      ctx.beginPath();
+      ctx.moveTo(x, axisY - 4); ctx.lineTo(x, axisY + 4);
+      ctx.stroke();
+      ctx.fillText(t.toFixed(1), x - 10, axisY + 16);
+    }
+    ctx.restore();
+
+    // true value reference line
+    const trueX = toX(TRUE_VALUE);
+    ctx.save();
+    ctx.strokeStyle = css('--gold');
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(trueX, 14);
+    ctx.lineTo(trueX, axisY);
+    ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.fillStyle = css('--gold');
+    ctx.font = '700 11px ' + getComputedStyle(document.body).fontFamily;
+    ctx.fillText('true period', trueX + 6, 24);
+    ctx.restore();
+
+    // gaussian reference curve for the current sigma, scaled to a pleasant height
+    const curveTop = 30, curveBase = axisY - 4, curveHeight = curveBase - curveTop;
+    const peak = gaussianPdf(TRUE_VALUE, TRUE_VALUE, sigma);
+    ctx.save();
+    ctx.strokeStyle = css('--cyan');
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let px = marginX; px <= w - marginX; px += 2) {
+      const v = domainMin + ((px - marginX) / (w - marginX * 2)) * (domainMax - domainMin);
+      const density = gaussianPdf(v, TRUE_VALUE, sigma) / peak;
+      const y = curveBase - density * curveHeight;
+      if (px === marginX) ctx.moveTo(px, y); else ctx.lineTo(px, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // dot-plot histogram: bin by fixed-width buckets so existing dots never
+    // have to move when a new one arrives
+    const binWidth = 0.02;
+    const dotR = 5, dotGap = 1.5;
+    const bins = {};
+    measurements.forEach(function (m) {
+      const bin = Math.round(m.value / binWidth);
+      bins[bin] = bins[bin] || [];
+      bins[bin].push(m);
+    });
+    const dotColor = css('--cyan');
+    Object.keys(bins).forEach(function (bin) {
+      const list = bins[bin];
+      const x = toX(parseInt(bin, 10) * binWidth);
+      list.forEach(function (m, i) {
+        const finalY = axisY - dotR - i * (dotR * 2 + dotGap) - 2;
+        const startY = 10;
+        const e = easeOutCubic(m.dropProgress);
+        const y = startY + (finalY - startY) * e;
+        ctx.save();
+        ctx.globalAlpha = 0.3 + 0.7 * e;
+        ctx.fillStyle = dotColor;
+        ctx.beginPath();
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    });
+
+    // mean + error bars, drawn below the axis
+    const s = stats(measurements.map(function (m) { return m.value; }));
+    const rowY1 = h * 0.80, rowY2 = h * 0.92;
+    if (s.n > 0) {
+      const meanX = toX(s.mean);
+      // faint wide bar: spread of individual measurements (+/- 1 sample stddev)
+      if (s.stddev !== null) {
+        const halfW = (toX(s.mean + s.stddev) - toX(s.mean - s.stddev)) / 2;
+        drawErrorWhisker(ctx, meanX, rowY1, halfW, css('--ink-faint'), 2, 6);
+        ctx.save(); ctx.fillStyle = css('--ink-faint'); ctx.font = '700 10px ' + getComputedStyle(document.body).fontFamily;
+        ctx.fillText('spread of individual points (±s)', marginX, rowY1 - 10);
+        ctx.restore();
+      }
+      // bold narrow bar: uncertainty on the mean (+/- SEM) -- the one you'd actually report
+      ctx.save(); ctx.fillStyle = css('--gold'); ctx.beginPath(); ctx.arc(meanX, rowY2, 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      if (s.sem !== null) {
+        const halfW = (toX(s.mean + s.sem) - toX(s.mean - s.sem)) / 2;
+        drawErrorWhisker(ctx, meanX, rowY2, halfW, css('--gold'), 3, 8);
+      }
+      ctx.save(); ctx.fillStyle = css('--gold'); ctx.font = '700 10px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillText('your reported result (± SEM)', marginX, rowY2 + 18);
+      ctx.restore();
+    }
+  }
+
+  // ============ DRAWING: COMPARING RESULTS ============
+  function drawScene2(w, h) {
+    const lo = Math.min(A.val - A.err, B.val - B.err) - 0.1;
+    const hi = Math.max(A.val + A.err, B.val + B.err) + 0.1;
+    const marginX = 50;
+    const toX = function (v) { return marginX + ((v - lo) / (hi - lo)) * (w - marginX * 2); };
+
+    const axisColor = css('--ink-faint');
+    const axisY = h - 40;
+    ctx.save();
+    ctx.strokeStyle = axisColor;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(marginX, axisY); ctx.lineTo(w - marginX, axisY); ctx.stroke();
+    ctx.font = '700 10px ' + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = axisColor;
+    const step = (hi - lo) > 1 ? 0.5 : 0.1;
+    for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) {
+      const x = toX(t);
+      ctx.beginPath(); ctx.moveTo(x, axisY - 4); ctx.lineTo(x, axisY + 4); ctx.stroke();
+      ctx.fillText(t.toFixed(2), x - 12, axisY + 16);
+    }
+    ctx.restore();
+
+    const rowAY = h * 0.32, rowBY = h * 0.58;
+    const cyan = css('--cyan'), accent = css('--accent');
+    [{ obj: A, y: rowAY, color: cyan, label: 'A' }, { obj: B, y: rowBY, color: accent, label: 'B' }].forEach(function (row) {
+      const x = toX(row.obj.val);
+      const halfW = (toX(row.obj.val + row.obj.err) - toX(row.obj.val - row.obj.err)) / 2;
+      drawErrorWhisker(ctx, x, row.y, halfW, row.color, 3, 9);
+      ctx.save(); ctx.fillStyle = row.color; ctx.beginPath(); ctx.arc(x, row.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '700 13px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillText(row.label, x - 4, row.y - 14);
+      ctx.restore();
+    });
+
+    // shaded overlap region, if any
+    const aLo = A.val - A.err, aHi = A.val + A.err, bLo = B.val - B.err, bHi = B.val + B.err;
+    const overlapLo = Math.max(aLo, bLo), overlapHi = Math.min(aHi, bHi);
+    if (overlapHi > overlapLo) {
+      ctx.save();
+      ctx.fillStyle = css('--positive');
+      ctx.globalAlpha = 0.12;
+      ctx.fillRect(toX(overlapLo), rowAY - 20, toX(overlapHi) - toX(overlapLo), rowBY - rowAY + 40);
+      ctx.restore();
+    }
+  }
+
+  // ============ DRAWING: PROPAGATING UNCERTAINTY ============
+  function drawScene3(w, h) {
+    const result = computePropagation();
+    if (operation === '+' || operation === '-') {
+      const vals = [opA.val, opB.val, result.result];
+      const errs = [opA.err, opB.err, result.dResult];
+      const lo = Math.min.apply(null, vals.map(function (v, i) { return v - errs[i]; })) - 0.3;
+      const hi = Math.max.apply(null, vals.map(function (v, i) { return v + errs[i]; })) + 0.3;
+      const marginX = 50;
+      const toX = function (v) { return marginX + ((v - lo) / (hi - lo)) * (w - marginX * 2); };
+      const axisColor = css('--ink-faint');
+      const axisY = h - 40;
+      ctx.save();
+      ctx.strokeStyle = axisColor; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(marginX, axisY); ctx.lineTo(w - marginX, axisY); ctx.stroke();
+      ctx.restore();
+
+      const rows = [
+        { val: opA.val, err: opA.err, y: h * 0.22, color: css('--cyan'), label: 'A' },
+        { val: opB.val, err: opB.err, y: h * 0.42, color: css('--accent'), label: 'B' },
+        { val: result.result, err: result.dResult, y: h * 0.68, color: css('--gold'), label: 'Result' },
+      ];
+      rows.forEach(function (row) {
+        const x = toX(row.val);
+        const halfW = (toX(row.val + row.err) - toX(row.val - row.err)) / 2;
+        drawErrorWhisker(ctx, x, row.y, halfW, row.color, 3, 9);
+        ctx.save(); ctx.fillStyle = row.color; ctx.beginPath(); ctx.arc(x, row.y, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.font = '700 13px ' + getComputedStyle(document.body).fontFamily;
+        ctx.fillText(row.label, x - 4, row.y - 14);
+        ctx.restore();
+      });
+    } else {
+      // multiply/divide: relative (percent) uncertainty is what actually
+      // combines, so show that directly as a small bar chart instead of a
+      // shared number line (A, B, and the result are different units)
+      const relA = Math.abs(opA.err / opA.val) * 100;
+      const relB = Math.abs(opB.err / opB.val) * 100;
+      const relResult = Math.sqrt(relA * relA + relB * relB) / 100 * 100; // == sqrt(relA^2+relB^2)
+      const bars = [
+        { label: 'A', pct: relA, color: css('--cyan') },
+        { label: 'B', pct: relB, color: css('--accent') },
+        { label: 'Result', pct: Math.sqrt(relA * relA + relB * relB), color: css('--gold') },
+      ];
+      const maxPct = Math.max.apply(null, bars.map(function (b) { return b.pct; })) * 1.2 || 1;
+      const marginX = 90, marginTop = 30, marginBottom = 40;
+      const barAreaW = w - marginX - 40;
+      const rowH = (h - marginTop - marginBottom) / bars.length;
+      bars.forEach(function (b, i) {
+        const y = marginTop + i * rowH + rowH * 0.5;
+        const barW = (b.pct / maxPct) * barAreaW;
+        ctx.save();
+        ctx.fillStyle = b.color;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(marginX, y - 12, Math.max(2, barW), 24);
+        ctx.globalAlpha = 1;
+        ctx.font = '700 13px ' + getComputedStyle(document.body).fontFamily;
+        ctx.fillStyle = css('--ink');
+        ctx.textAlign = 'right';
+        ctx.fillText(b.label, marginX - 10, y + 5);
+        ctx.textAlign = 'left';
+        ctx.fillText(b.pct.toFixed(1) + '%', marginX + barW + 8, y + 5);
+        ctx.restore();
+      });
+    }
+  }
+
+  function computePropagation() {
+    const a = opA.val, da = opA.err, b = opB.val, db = opB.err;
+    let result, dResult;
+    if (operation === '+') { result = a + b; dResult = Math.sqrt(da * da + db * db); }
+    else if (operation === '-') { result = a - b; dResult = Math.sqrt(da * da + db * db); }
+    else {
+      result = operation === '*' ? a * b : a / b;
+      const rel = Math.sqrt((da / a) * (da / a) + (db / b) * (db / b));
+      dResult = Math.abs(result) * rel;
+    }
+    return { result: result, dResult: dResult };
+  }
+
+  // ============ MASTER DRAW / RENDER ============
+  function drawScene() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    if (w < 1 || h < 1) return;
+    ctx.clearRect(0, 0, w, h);
+    if (view === 'repeat') drawScene1(w, h);
+    else if (view === 'compare') drawScene2(w, h);
+    else drawScene3(w, h);
+  }
+
+  function render() {
+    drawScene();
+    updateReadouts();
+  }
+
+  // ============ READOUTS ============
+  function updateReadouts() {
+    sigmaReadout.textContent = '±' + fmt(sigma, 2) + ' s';
+
+    if (view === 'repeat') {
+      const s = stats(measurements.map(function (m) { return m.value; }));
+      statN.textContent = String(s.n);
+      statMean.textContent = s.mean !== null ? fmt(s.mean) + ' s' : '—';
+      statStddev.textContent = s.stddev !== null ? fmt(s.stddev) + ' s' : '—';
+      statSem.textContent = s.sem !== null ? '±' + fmt(s.sem) + ' s' : '—';
+      if (s.sem !== null) {
+        trigSem.textContent = fmt(s.stddev) + ' / √' + s.n + ' = ' + fmt(s.sem) + ' s';
+      } else {
+        trigSem.textContent = 'take at least 2 measurements';
+      }
+      explainText1.innerHTML = s.n === 0
+        ? 'Click <strong>Take a measurement</strong> to simulate timing one pendulum swing with a stopwatch that has ' + fmt(sigma, 2) + ' s of random (reaction-time) scatter.'
+        : 'With <strong>' + s.n + '</strong> measurement' + (s.n === 1 ? '' : 's') + ', your best estimate is x&#772; = <strong>' + fmt(s.mean) + ' s</strong>. The wide gray bar is how scattered your <em>individual</em> readings are (&plusmn;s) &mdash; that doesn\'t shrink with more data. The narrow gold bar is how well you know the <em>mean</em> (&plusmn;SEM) &mdash; that one shrinks as 1/&radic;N, which is the entire reason repeated measurements are worth taking.';
+    } else if (view === 'compare') {
+      compsA.textContent = fmt(A.val) + ' ± ' + fmt(A.err) + ' s';
+      compsB.textContent = fmt(B.val) + ' ± ' + fmt(B.err) + ' s';
+      const diff = Math.abs(A.val - B.val);
+      const combined = Math.sqrt(A.err * A.err + B.err * B.err);
+      const z = combined > 0 ? diff / combined : Infinity;
+      statDiff.textContent = fmt(diff) + ' s';
+      statCombined.textContent = fmt(combined) + ' s';
+      statZ.textContent = fmt(z, 2) + 'σ';
+      trigCombined.textContent = '√(' + fmt(A.err) + '² + ' + fmt(B.err) + '²) = ' + fmt(combined) + ' s';
+      trigZ.textContent = fmt(diff) + ' / ' + fmt(combined) + ' = ' + fmt(z, 2);
+      let verdictText, verdictClass, explain;
+      if (z < 1) {
+        verdictText = 'Agree'; verdictClass = 'accent-positive';
+        explain = 'The results are within about one combined uncertainty of each other &mdash; that\'s completely ordinary scatter, not a discrepancy. This is what you want to see.';
+      } else if (z < 2) {
+        verdictText = 'Marginal'; verdictClass = 'accent-gold';
+        explain = 'The gap is a bit larger than the combined uncertainty suggests it should typically be, but it\'s not unusual enough to call a real disagreement on its own.';
+      } else {
+        verdictText = 'Tension'; verdictClass = 'accent-danger';
+        explain = 'The results are more than two combined uncertainties apart &mdash; that\'s a real discrepancy worth investigating (a mistake, an unaccounted systematic error, or a genuinely different effect), not just random scatter.';
+      }
+      verdictValue.textContent = verdictText;
+      verdictValue.className = 'vb-value mono ' + verdictClass;
+      statZ.className = 'stat-value mono ' + verdictClass;
+      explainText2.innerHTML = explain + ' Shrink either error bar and watch the shaded overlap (and the verdict) change with it.';
+    } else {
+      compsA.textContent = fmt(opA.val) + ' ± ' + fmt(opA.err);
+      compsB.textContent = fmt(opB.val) + ' ± ' + fmt(opB.err);
+      const p = computePropagation();
+      const opSymbol = operation === '*' ? '×' : operation === '/' ? '/' : operation;
+      resultLabel3.textContent = 'A ' + opSymbol + ' B';
+      resultValue3.textContent = fmt(p.result) + ' ± ' + fmt(p.dResult);
+      if (operation === '+' || operation === '-') {
+        trigPanel3.innerHTML =
+          '<div class="trig-group-label">Absolute uncertainties add in quadrature</div>' +
+          '<div class="trig-row"><span class="trig-lhs">&delta;result = &radic;(&delta;A&sup2; + &delta;B&sup2;) =</span><span class="trig-eq mono">' +
+          '√(' + fmt(opA.err) + '² + ' + fmt(opB.err) + '²) = ' + fmt(p.dResult) + '</span></div>';
+        explainText3.innerHTML = 'Adding or subtracting measured quantities: their <strong>absolute</strong> uncertainties combine in quadrature (never by simply adding &delta;A + &delta;B &mdash; that would overstate it). Try dragging A\'s or B\'s uncertainty and watch the result\'s error bar respond.';
+      } else {
+        const relA = Math.abs(opA.err / opA.val) * 100;
+        const relB = Math.abs(opB.err / opB.val) * 100;
+        const relResult = Math.sqrt(relA * relA + relB * relB);
+        trigPanel3.innerHTML =
+          '<div class="trig-group-label">Relative (percent) uncertainties add in quadrature</div>' +
+          '<div class="trig-row"><span class="trig-lhs">&delta;A/A =</span><span class="trig-eq mono">' + relA.toFixed(1) + '%</span></div>' +
+          '<div class="trig-row"><span class="trig-lhs">&delta;B/B =</span><span class="trig-eq mono">' + relB.toFixed(1) + '%</span></div>' +
+          '<div class="trig-row"><span class="trig-lhs">&delta;result/result = &radic;((&delta;A/A)&sup2; + (&delta;B/B)&sup2;) =</span><span class="trig-eq mono">' + relResult.toFixed(1) + '%</span></div>' +
+          '<div class="trig-row"><span class="trig-lhs">&delta;result = result &times; that fraction =</span><span class="trig-eq mono">' + fmt(p.dResult) + '</span></div>';
+        explainText3.innerHTML = 'Multiplying or dividing measured quantities: it\'s their <strong>relative</strong> (percent) uncertainties that combine in quadrature, not the absolute ones. The bar chart above shows exactly that combination &mdash; the result\'s percent uncertainty is never simply the sum of the two percentages.';
+      }
+    }
+  }
+
+  updateViewChips();
+  updateUIForView();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
