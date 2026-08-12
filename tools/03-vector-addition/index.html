@@ -711,6 +711,7 @@
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let tailAnim = 1;
   let tailTween = null; // { from, to, start, duration }
+  let tailAnimLoopActive = false; // guards against stacking a second rAF chain
 
   function easeInOutCubic(t) {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -726,11 +727,20 @@
       render();
       return;
     }
+    // Re-target the in-flight tween if one's already running, rather than
+    // starting a second parallel rAF loop -- clicking the toggle back and
+    // forth quickly used to spawn one tickTailAnim chain per click, all
+    // reading/writing the same tailAnim and each redundantly redrawing the
+    // canvas every frame. One loop, re-aimed on click, eases smoothly from
+    // wherever the animation currently is either way.
     tailTween = { from: tailAnim, to: target, start: null, duration: 650 };
-    requestAnimationFrame(tickTailAnim);
+    if (!tailAnimLoopActive) {
+      tailAnimLoopActive = true;
+      requestAnimationFrame(tickTailAnim);
+    }
   }
   function tickTailAnim(ts) {
-    if (!tailTween) return;
+    if (!tailTween) { tailAnimLoopActive = false; return; }
     if (tailTween.start === null) tailTween.start = ts;
     const t = Math.min(1, (ts - tailTween.start) / tailTween.duration);
     const e = easeInOutCubic(t);
@@ -740,6 +750,7 @@
       requestAnimationFrame(tickTailAnim);
     } else {
       tailTween = null;
+      tailAnimLoopActive = false;
       updateReadouts();
     }
   }
