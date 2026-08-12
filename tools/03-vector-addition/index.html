@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vector Addition Lab</title>
+<meta name="description" content="See how vector components add together to build a resultant vector — drag magnitude/angle sliders, watch the x and y components sum, and slide B tip-to-tail onto A." />
+<style>
+  :root {
+    --bg: #0B0A18;
+    --surface: #17132B;
+    --surface-2: #1F1A3B;
+    --ink: #F4EFE6;
+    --ink-soft: #B7ADD9;
+    --ink-faint: #7B6FA6;
+    --line: #2A2350;
+    --line-bright: #5B4A96;
+    --accent: #FF4D7E;
+    --cyan: #33F1E6;
+    --gold: #FFD84D;
+    --shadow-color: #000000;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    padding: 2.25rem 1.25rem 4rem;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.14) 0px,
+      rgba(0, 0, 0, 0.14) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.85rem;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  /* ---------- 8-bit panel utility ---------- */
+  .panel-8bit { position: relative; z-index: 0; }
+  .panel-8bit::before, .panel-8bit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+  }
+  .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
+  .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 3px solid var(--line-bright);
+    padding-bottom: 1.4rem;
+  }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+  .eyebrow::before { content: '// '; opacity: 0.7; }
+  header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
+  header.masthead p {
+    margin: 0.3rem 0 0; color: var(--ink-soft); max-width: 68ch; font-size: 0.92rem;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
+
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- mode switcher ---------- */
+  .mode-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .chip {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip:active { transform: translate(3px, 3px); box-shadow: none; }
+  .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
+  .chip-sep { width: 2px; align-self: stretch; background: var(--line-bright); margin: 0 0.15rem; }
+
+  /* ---------- viewport ---------- */
+  .viewport-panel { padding: 0.9rem; }
+  .viewport-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .viewport-hint { font-size: 0.76rem; color: var(--ink-faint); }
+  .viewport-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .btn-ghost {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
+  .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: rgba(255, 77, 126, 0.12); }
+
+  .scene-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: var(--bg);
+    border: 2px solid var(--line-bright);
+    overflow: hidden;
+  }
+  .scene-wrap canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---------- vector controls ---------- */
+  .vectors-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+  }
+  .vector-card { padding: 1.1rem 1.2rem 1.2rem; }
+  .vector-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+  }
+  .vector-name { font-size: 1rem; font-weight: 700; }
+  .vector-comps { font-size: 0.8rem; color: var(--ink-faint); }
+  .comp-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .comp-row:last-child { margin-bottom: 0; }
+  .comp-label { flex: none; width: 3.1rem; font-size: 0.78rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  input[type="range"].comp-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 0.4rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    cursor: pointer;
+  }
+  input[type="range"].comp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.9rem;
+    height: 1.3rem;
+    background: var(--thumb-color, var(--cyan));
+    border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color);
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"].comp-slider::-moz-range-thumb {
+    width: 0.9rem; height: 1.3rem; background: var(--thumb-color, var(--cyan)); border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color); cursor: pointer; border-radius: 0;
+  }
+  input.comp-value {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 0.28rem 0.4rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--ink);
+    width: 3.9rem;
+    text-align: right;
+    flex: none;
+  }
+  .comp-derived {
+    display: flex;
+    gap: 1.1rem;
+    margin-top: 0.75rem;
+    padding-top: 0.7rem;
+    border-top: 1px dashed var(--line-bright);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  .comp-derived b { color: var(--ink); }
+
+  /* ---------- ledger ---------- */
+  .ledger-panel { padding: 1.2rem 1.4rem 1.4rem; }
+  .ledger-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.4rem;
+    margin-bottom: 1.1rem;
+  }
+  .ledger-col { }
+  .ledger-col-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.5rem; }
+  .ledger-rows { font-size: 1.15rem; }
+  .ledger-row { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.2rem 0; }
+  .ledger-row .lr-tag { flex: none; width: 1.6rem; color: var(--ink-faint); font-size: 0.85rem; }
+  .ledger-row .lr-val { flex: 1; text-align: right; font-weight: 700; }
+  .ledger-row.lr-a .lr-val { color: var(--cyan); }
+  .ledger-row.lr-b .lr-val { color: var(--accent); }
+  .ledger-rule { border: none; border-top: 2px solid var(--line-bright); margin: 0.25rem 0; }
+  .ledger-row.lr-r .lr-val { color: var(--gold); font-size: 1.3rem; }
+
+  .result-banner {
+    padding: 0.9rem 1.1rem;
+    border: 2px dashed var(--line-bright);
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+  .result-banner .rb-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.35rem; }
+  .result-banner .rb-value { font-size: 1.6rem; font-weight: 700; color: var(--gold); text-shadow: 2px 2px 0 var(--shadow-color); }
+
+  .explain-text { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; }
+  .explain-text strong { color: var(--ink); }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    padding-top: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+  footer::after { content: '_'; color: var(--cyan); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    footer::after { animation: none; opacity: 1; }
+    .chip, .btn-ghost { transition: none; }
+  }
+
+  @media (max-width: 640px) {
+    header.masthead h1 { font-size: 1.6rem; }
+    .vectors-row { grid-template-columns: 1fr; }
+    .ledger-cols { grid-template-columns: 1fr; }
+    .result-banner .rb-value { font-size: 1.3rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow">Vectors &middot; Component Addition</div>
+    <h1>Vector Addition Lab</h1>
+    <p>Every vector breaks into an x-part and a y-part. Adding two vectors is just adding those parts separately &mdash; drag magnitude and angle, and watch A and B's components sum into the resultant, both in the numbers and on the graph.</p>
+  </header>
+
+  <div class="mode-chips" id="placementChips" role="group" aria-label="How to draw vector B"></div>
+
+  <section class="viewport-panel panel-8bit" aria-label="2D vector diagram">
+    <div class="viewport-toolbar">
+      <div class="viewport-hint">B's own arrow never changes &mdash; only where you start drawing it from</div>
+      <div class="viewport-actions">
+        <button class="btn-ghost" id="parallelogramBtn" type="button" aria-pressed="false" title="Also draw the A-then-B and B-then-A paths together, showing they land on the same resultant">&#9635; Show parallelogram</button>
+      </div>
+    </div>
+    <div class="scene-wrap" id="sceneWrap">
+      <canvas id="scene"></canvas>
+    </div>
+  </section>
+
+  <section class="vectors-row">
+    <div class="vector-card panel-8bit">
+      <div class="vector-card-head">
+        <span class="vector-name" style="color:var(--cyan);">Vector A</span>
+        <span class="vector-comps mono" id="compsA"></span>
+      </div>
+      <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="aMagSlider" style="--thumb-color:var(--cyan);" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="aMagValue" /></div>
+      <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="aAngleSlider" style="--thumb-color:var(--cyan);" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="aAngleValue" /></div>
+      <div class="comp-derived"><span>A<sub>x</sub> = <b id="axOut">&mdash;</b></span><span>A<sub>y</sub> = <b id="ayOut">&mdash;</b></span></div>
+    </div>
+    <div class="vector-card panel-8bit">
+      <div class="vector-card-head">
+        <span class="vector-name" style="color:var(--accent);">Vector B</span>
+        <span class="vector-comps mono" id="compsB"></span>
+      </div>
+      <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="bMagSlider" style="--thumb-color:var(--accent);" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="bMagValue" /></div>
+      <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="bAngleSlider" style="--thumb-color:var(--accent);" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="bAngleValue" /></div>
+      <div class="comp-derived"><span>B<sub>x</sub> = <b id="bxOut">&mdash;</b></span><span>B<sub>y</sub> = <b id="byOut">&mdash;</b></span></div>
+    </div>
+  </section>
+
+  <section class="ledger-panel panel-8bit" aria-label="Component addition">
+    <div class="ledger-cols">
+      <div class="ledger-col">
+        <div class="ledger-col-label">X components</div>
+        <div class="ledger-rows mono">
+          <div class="ledger-row lr-a"><span class="lr-tag">A<sub>x</sub></span><span class="lr-val" id="ledgerAx">&mdash;</span></div>
+          <div class="ledger-row lr-b"><span class="lr-tag">+B<sub>x</sub></span><span class="lr-val" id="ledgerBx">&mdash;</span></div>
+          <hr class="ledger-rule" />
+          <div class="ledger-row lr-r"><span class="lr-tag">R<sub>x</sub></span><span class="lr-val" id="ledgerRx">&mdash;</span></div>
+        </div>
+      </div>
+      <div class="ledger-col">
+        <div class="ledger-col-label">Y components</div>
+        <div class="ledger-rows mono">
+          <div class="ledger-row lr-a"><span class="lr-tag">A<sub>y</sub></span><span class="lr-val" id="ledgerAy">&mdash;</span></div>
+          <div class="ledger-row lr-b"><span class="lr-tag">+B<sub>y</sub></span><span class="lr-val" id="ledgerBy">&mdash;</span></div>
+          <hr class="ledger-rule" />
+          <div class="ledger-row lr-r"><span class="lr-tag">R<sub>y</sub></span><span class="lr-val" id="ledgerRy">&mdash;</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="result-banner">
+      <div class="rb-label">R = A + B</div>
+      <div class="rb-value mono" id="resultValue">&mdash;</div>
+    </div>
+    <p class="explain-text" id="explainText"></p>
+  </section>
+
+  <footer>Drag either vector &mdash; the resultant never lies, it's just addition</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ MATH ============
+  function comps(v) {
+    const r = (v.angle * Math.PI) / 180;
+    return { x: v.mag * Math.cos(r), y: v.mag * Math.sin(r) };
+  }
+  function normalizeDeg(d) { let x = d % 360; if (x < 0) x += 360; return x; }
+  function addV(a, b) { return { x: a.x + b.x, y: a.y + b.y }; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function fmt(n, decimals) {
+    if (!isFinite(n)) return '0';
+    const d = decimals === undefined ? 2 : decimals;
+    let s = n.toFixed(d);
+    if (s === '-0.00' || s === '-0.0' || s === '-0') s = s.slice(1);
+    return s;
+  }
+  function fmtSigned(n, decimals) {
+    const s = fmt(Math.abs(n), decimals);
+    return (n < -1e-9 ? '−' : '') + s;
+  }
+
+  // ============ STATE ============
+  const O = { x: 0, y: 0 };
+  let A = { mag: 6, angle: 35 };
+  let B = { mag: 5, angle: 150 };
+  let tipToTail = true;        // where B's arrow is drawn FROM: A's tip, or the origin
+  let showParallelogram = false;
+
+  // ============ DOM ============
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const sceneWrap = document.getElementById('sceneWrap');
+  const placementChipsHost = document.getElementById('placementChips');
+  const parallelogramBtn = document.getElementById('parallelogramBtn');
+  const compsA = document.getElementById('compsA');
+  const compsB = document.getElementById('compsB');
+  const axOut = document.getElementById('axOut');
+  const ayOut = document.getElementById('ayOut');
+  const bxOut = document.getElementById('bxOut');
+  const byOut = document.getElementById('byOut');
+  const ledgerAx = document.getElementById('ledgerAx');
+  const ledgerBx = document.getElementById('ledgerBx');
+  const ledgerRx = document.getElementById('ledgerRx');
+  const ledgerAy = document.getElementById('ledgerAy');
+  const ledgerBy = document.getElementById('ledgerBy');
+  const ledgerRy = document.getElementById('ledgerRy');
+  const resultValue = document.getElementById('resultValue');
+  const explainText = document.getElementById('explainText');
+
+  const PLACEMENTS = [
+    { id: 'origin', label: 'From origin' },
+    { id: 'tip', label: 'Tip-to-tail' },
+  ];
+  const placementChipEls = PLACEMENTS.map(function (p) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = p.label;
+    chip.addEventListener('click', function () { setTipToTail(p.id === 'tip'); });
+    placementChipsHost.appendChild(chip);
+    return chip;
+  });
+  function updatePlacementChips() {
+    placementChipEls.forEach(function (chip, i) {
+      chip.classList.toggle('is-active', (PLACEMENTS[i].id === 'tip') === tipToTail);
+    });
+  }
+
+  parallelogramBtn.addEventListener('click', function () {
+    showParallelogram = !showParallelogram;
+    parallelogramBtn.setAttribute('aria-pressed', String(showParallelogram));
+    parallelogramBtn.textContent = (showParallelogram ? '☒' : '◦') + ' Show parallelogram';
+    // the parallelogram is about two tip-to-tail paths to the same R -- it
+    // only makes sense once B is actually drawn tip-to-tail
+    if (showParallelogram && !tipToTail) setTipToTail(true);
+    render();
+  });
+
+  // ---- vector sliders ----
+  function bindComponent(sliderId, valueId, vec, key, min, max, onChange) {
+    const slider = document.getElementById(sliderId);
+    const value = document.getElementById(valueId);
+    slider.value = String(vec[key]);
+    value.value = fmt(vec[key], key === 'angle' ? 0 : 2);
+    slider.addEventListener('input', function () {
+      vec[key] = parseFloat(slider.value);
+      value.value = fmt(vec[key], key === 'angle' ? 0 : 2);
+      onChange();
+    });
+    value.addEventListener('change', function () {
+      const parsed = parseFloat(value.value);
+      if (!isNaN(parsed)) {
+        vec[key] = Math.max(min, Math.min(max, parsed));
+        slider.value = String(vec[key]);
+      }
+      value.value = fmt(vec[key], key === 'angle' ? 0 : 2);
+      onChange();
+    });
+  }
+  bindComponent('aMagSlider', 'aMagValue', A, 'mag', 0, 8, render);
+  bindComponent('aAngleSlider', 'aAngleValue', A, 'angle', -720, 720, render);
+  bindComponent('bMagSlider', 'bMagValue', B, 'mag', 0, 8, render);
+  bindComponent('bAngleSlider', 'bAngleValue', B, 'angle', -720, 720, render);
+
+  // ============ TIP-TO-TAIL SLIDE ANIMATION ============
+  // B's own arrow (length + direction) never changes -- only its tail
+  // position animates between the origin (tailAnim=0) and A's tip
+  // (tailAnim=1), so the slide visibly proves "moving a vector doesn't
+  // change it" rather than just cutting between two static pictures.
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let tailAnim = 1;
+  let tailTween = null; // { from, to, start, duration }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  function setTipToTail(on) {
+    if (on === tipToTail) return;
+    tipToTail = on;
+    updatePlacementChips();
+    const target = on ? 1 : 0;
+    if (reduceMotion) {
+      tailAnim = target;
+      tailTween = null;
+      render();
+      return;
+    }
+    tailTween = { from: tailAnim, to: target, start: null, duration: 650 };
+    requestAnimationFrame(tickTailAnim);
+  }
+  function tickTailAnim(ts) {
+    if (!tailTween) return;
+    if (tailTween.start === null) tailTween.start = ts;
+    const t = Math.min(1, (ts - tailTween.start) / tailTween.duration);
+    const e = easeInOutCubic(t);
+    tailAnim = tailTween.from + (tailTween.to - tailTween.from) * e;
+    drawScene();
+    if (t < 1) {
+      requestAnimationFrame(tickTailAnim);
+    } else {
+      tailTween = null;
+      updateReadouts();
+    }
+  }
+
+  // ============ CANVAS SIZING ============
+  function resizeCanvas() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ============ DRAWING ============
+  function css(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  // Fit-to-content: always frames O, A's tip, B's tip-from-origin, and R
+  // together, regardless of which placement is currently showing, so
+  // toggling or animating between them never jumps the zoom around.
+  const MARGIN_PX = 46, MIN_SPAN = 3, MIN_SCALE = 10, MAX_SCALE = 90;
+  let fit = { scale: 40, cx: 0, cy: 0 };
+  function computeFit(w, h) {
+    const Ac = comps(A), Bc = comps(B), R = addV(Ac, Bc);
+    const pts = [O, Ac, Bc, R];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    pts.forEach(function (p) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    });
+    const spanX = Math.max(MIN_SPAN, maxX - minX);
+    const spanY = Math.max(MIN_SPAN, maxY - minY);
+    const availW = Math.max(20, w - MARGIN_PX * 2);
+    const availH = Math.max(20, h - MARGIN_PX * 2);
+    let scale = Math.min(availW / spanX, availH / spanY);
+    scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+    return { scale: scale, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+  }
+  function toScreen(p, w, h) {
+    return { x: w / 2 + (p.x - fit.cx) * fit.scale, y: h / 2 - (p.y - fit.cy) * fit.scale };
+  }
+
+  function drawLine(p1, p2, w, h, color, width, dash, alpha) {
+    const s1 = toScreen(p1, w, h), s2 = toScreen(p2, w, h);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width || 2;
+    ctx.setLineDash(dash || []);
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrow(from, to, w, h, color, label, alpha, width) {
+    const s1 = toScreen(from, w, h), s2 = toScreen(to, w, h);
+    const dx0 = s2.x - s1.x, dy0 = s2.y - s1.y;
+    if (Math.hypot(dx0, dy0) < 1) return; // zero-length -- nothing to draw
+    drawLine(from, to, w, h, color, width || 3, undefined, alpha);
+    const dx = s2.x - s1.x, dy = s2.y - s1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const headLen = 13, headWidth = 6.5;
+    const bx = s2.x - ux * headLen, by = s2.y - uy * headLen;
+    const px = -uy, py = ux;
+    ctx.save();
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(s2.x, s2.y);
+    ctx.lineTo(bx + px * headWidth, by + py * headWidth);
+    ctx.lineTo(bx - px * headWidth, by - py * headWidth);
+    ctx.closePath();
+    ctx.fill();
+    if (label) {
+      // offset perpendicular to THIS arrow's own direction (not a fixed
+      // screen-space nudge) -- B's tip-to-tail arrowhead lands exactly on R's
+      // tip, so a fixed offset would stack their labels on top of each other
+      ctx.font = '700 14px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillText(label, s2.x - ux * 8 + px * 15, s2.y - uy * 8 + py * 15);
+    }
+    ctx.restore();
+  }
+
+  // Dashed right-angle "shadow" of a vector's tip onto each axis, anchored at
+  // `origin` (the true origin for A, or wherever B's tail currently is for
+  // B) -- this is the picture of "resolving into components."
+  function drawComponentDrops(origin, comp, w, h, color) {
+    const tip = addV(origin, comp);
+    const footX = { x: tip.x, y: origin.y };
+    const footY = { x: origin.x, y: tip.y };
+    drawLine(tip, footX, w, h, color, 1.4, [5, 4], 0.55);
+    drawLine(tip, footY, w, h, color, 1.4, [5, 4], 0.55);
+    drawLine(origin, footX, w, h, color, 1.4, [5, 4], 0.35);
+    drawLine(origin, footY, w, h, color, 1.4, [5, 4], 0.35);
+  }
+
+  function drawGrid(w, h) {
+    const gridColor = 'rgba(91, 74, 150, 0.28)';
+    const step = 1;
+    const left = fit.cx - (w / 2) / fit.scale, right = fit.cx + (w / 2) / fit.scale;
+    const top = fit.cy + (h / 2) / fit.scale, bottom = fit.cy - (h / 2) / fit.scale;
+    const i0 = Math.floor(left / step), i1 = Math.ceil(right / step);
+    const j0 = Math.floor(bottom / step), j1 = Math.ceil(top / step);
+    for (let i = i0; i <= i1; i++) drawLine({ x: i, y: bottom }, { x: i, y: top }, w, h, gridColor, 1);
+    for (let j = j0; j <= j1; j++) drawLine({ x: left, y: j }, { x: right, y: j }, w, h, gridColor, 1);
+  }
+
+  function drawAxes(w, h) {
+    const axisColor = css('--ink-faint') || '#7B6FA6';
+    const left = fit.cx - (w / 2) / fit.scale, right = fit.cx + (w / 2) / fit.scale;
+    const top = fit.cy + (h / 2) / fit.scale, bottom = fit.cy - (h / 2) / fit.scale;
+    drawLine({ x: left, y: 0 }, { x: right, y: 0 }, w, h, axisColor, 1.5);
+    drawLine({ x: 0, y: bottom }, { x: 0, y: top }, w, h, axisColor, 1.5);
+  }
+
+  function drawScene() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    if (w < 1 || h < 1) return;
+    fit = computeFit(w, h);
+    ctx.clearRect(0, 0, w, h);
+    drawGrid(w, h);
+    drawAxes(w, h);
+
+    const Ac = comps(A), Bc = comps(B);
+    const R = addV(Ac, Bc);
+    const cyan = css('--cyan'), accent = css('--accent'), gold = css('--gold');
+
+    // B's tail slides between the origin (tailAnim=0) and A's tip (tailAnim=1)
+    const bTail = { x: Ac.x * tailAnim, y: Ac.y * tailAnim };
+    const bTip = addV(bTail, Bc);
+
+    if (showParallelogram) {
+      // the faint alternate path: B from the origin, then A tip-to-tail at B's tip
+      drawArrow(O, Bc, w, h, accent, undefined, 0.3, 2);
+      drawArrow(Bc, R, w, h, cyan, undefined, 0.3, 2);
+      drawLine(Ac, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
+      drawLine(Bc, R, w, h, 'rgba(255, 216, 77, 0.25)', 1, [3, 4]);
+    }
+
+    drawArrow(O, Ac, w, h, cyan, 'A');
+    drawComponentDrops(O, Ac, w, h, cyan);
+
+    drawArrow(bTail, bTip, w, h, accent, 'B');
+    drawComponentDrops(bTail, Bc, w, h, accent);
+
+    drawArrow(O, R, w, h, gold, 'R', undefined, 4);
+  }
+
+  function render() {
+    drawScene();
+    updateReadouts();
+  }
+
+  // ============ READOUTS ============
+  function updateReadouts() {
+    const Ac = comps(A), Bc = comps(B);
+    const R = addV(Ac, Bc);
+    const Rmag = Math.hypot(R.x, R.y);
+    const Rangle = Rmag > 1e-6 ? normalizeDeg((Math.atan2(R.y, R.x) * 180) / Math.PI) : null;
+
+    compsA.textContent = '(' + fmt(Ac.x) + ', ' + fmt(Ac.y) + ')';
+    compsB.textContent = '(' + fmt(Bc.x) + ', ' + fmt(Bc.y) + ')';
+    axOut.textContent = fmt(Ac.x);
+    ayOut.textContent = fmt(Ac.y);
+    bxOut.textContent = fmt(Bc.x);
+    byOut.textContent = fmt(Bc.y);
+
+    ledgerAx.textContent = fmtSigned(Ac.x);
+    ledgerBx.textContent = fmtSigned(Bc.x);
+    ledgerRx.textContent = fmtSigned(R.x);
+    ledgerAy.textContent = fmtSigned(Ac.y);
+    ledgerBy.textContent = fmtSigned(Bc.y);
+    ledgerRy.textContent = fmtSigned(R.y);
+
+    resultValue.textContent = fmt(Rmag) + ' @ ' + (Rangle === null ? '—' : fmt(Rangle, 1) + '°');
+
+    explainText.innerHTML = 'Slide the magnitude and angle for <strong style="color:var(--cyan)">A</strong> and <strong style="color:var(--accent)">B</strong> and watch their x- and y-components add straight down each column above. Placing B’s tail at A’s tip (tip-to-tail) draws the same sum graphically: walk along A, then along B, and you land exactly on <strong style="color:var(--gold)">R</strong> &mdash; the single vector that gets you there directly. Toggle back to "From origin" to confirm it’s the identical arrow, just relocated.';
+  }
+
+  updatePlacementChips();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
