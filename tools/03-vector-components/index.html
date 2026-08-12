@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vector Components Lab</title>
-<meta name="description" content="See how a single vector breaks into its i-j-k pieces, in 2D and in 3D — drag magnitude/angle or x/y/z, and watch it get built one unit vector at a time." />
+<meta name="description" content="See how a single vector resolves into components using sin and cos, in 2D and in 3D — drag magnitude and angle, watch the right triangle (or two, in 3D), and see it get built one unit vector at a time." />
 <style>
   :root {
     --bg: #0B0A18;
@@ -236,13 +236,29 @@
 
   .stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     gap: 0.9rem;
     margin-bottom: 1.1rem;
   }
   .stat-item { display: flex; flex-direction: column; gap: 0.25rem; }
   .stat-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; }
   .stat-value { font-size: 1rem; font-weight: 700; color: var(--ink); }
+
+  /* ---------- trig breakdown ---------- */
+  .trig-panel {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    padding: 0.9rem 1.05rem;
+    margin-bottom: 1.1rem;
+  }
+  .trig-group-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.4rem; }
+  .trig-group-label:not(:first-child) { margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px dashed var(--line-bright); }
+  .trig-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; font-size: 0.92rem; padding: 0.15rem 0; }
+  .trig-lhs { color: var(--ink-soft); flex: none; }
+  .trig-eq { color: var(--ink); font-weight: 700; }
+  .trig-row.trig-x .trig-eq { color: var(--gold); }
+  .trig-row.trig-y .trig-eq { color: var(--accent); }
+  .trig-row.trig-z .trig-eq { color: var(--positive); }
 
   .explain-text { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; }
   .explain-text strong { color: var(--ink); }
@@ -274,14 +290,14 @@
   <header class="masthead">
     <div class="eyebrow">Vectors &middot; Unit Vector Decomposition</div>
     <h1>Vector Components Lab</h1>
-    <p id="introText">î and ĵ are the unit vectors along x and y &mdash; each exactly length 1. Any vector is just its components times these: V = V<sub>x</sub>î + V<sub>y</sub>ĵ. Drag magnitude and angle, and watch V get built one unit vector at a time.</p>
+    <p id="introText">Any vector resolves into components with sin and cos: V<sub>x</sub> = |V| cos&theta;, V<sub>y</sub> = |V| sin&theta; &mdash; the classic right triangle, hypotenuse |V|, angle &theta; from the x-axis. Drag magnitude and angle and watch the triangle move with it.</p>
   </header>
 
   <div class="mode-chips" id="viewChips" role="group" aria-label="2D or 3D"></div>
 
   <section class="viewport-panel panel-8bit" aria-label="Vector diagram">
     <div class="viewport-toolbar">
-      <div class="viewport-hint" id="viewportHint">Walk along î, then ĵ, and you land exactly on V</div>
+      <div class="viewport-hint" id="viewportHint">The shaded triangle is the same one from your textbook</div>
       <div class="viewport-actions">
         <button class="btn-ghost" id="resetViewBtn" type="button" style="display:none;">&#8635; Reset view</button>
         <button class="btn-ghost" id="playBuildBtn" type="button">&#9654; Play build</button>
@@ -301,10 +317,10 @@
       <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="vMagSlider" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="vMagValue" /></div>
       <div class="comp-row"><span class="comp-label">angle&deg;</span><input type="range" class="comp-slider" id="vAngleSlider" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="vAngleValue" /></div>
     </div>
-    <div id="vCartInputs" style="display:none;">
-      <div class="comp-row"><span class="comp-label">x</span><input type="range" class="comp-slider" id="v3xSlider" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="v3xValue" /></div>
-      <div class="comp-row"><span class="comp-label">y</span><input type="range" class="comp-slider" id="v3ySlider" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="v3yValue" /></div>
-      <div class="comp-row"><span class="comp-label">z</span><input type="range" class="comp-slider" id="v3zSlider" min="-5" max="5" step="0.1" /><input type="text" class="comp-value mono" id="v3zValue" /></div>
+    <div id="vSphInputs" style="display:none;">
+      <div class="comp-row"><span class="comp-label">mag</span><input type="range" class="comp-slider" id="v3MagSlider" min="0" max="8" step="0.1" /><input type="text" class="comp-value mono" id="v3MagValue" /></div>
+      <div class="comp-row"><span class="comp-label">elev&deg;</span><input type="range" class="comp-slider" id="v3ElevSlider" min="-90" max="90" step="1" /><input type="text" class="comp-value mono" id="v3ElevValue" /></div>
+      <div class="comp-row"><span class="comp-label">azim&deg;</span><input type="range" class="comp-slider" id="v3AzimSlider" min="0" max="360" step="1" /><input type="text" class="comp-value mono" id="v3AzimValue" /></div>
     </div>
   </section>
 
@@ -313,15 +329,35 @@
       <div class="nb-label">Written in unit-vector notation</div>
       <div class="nb-value mono" id="notation">&mdash;</div>
     </div>
-    <div class="stat-grid">
+    <div class="stat-grid" id="statGrid2D">
       <div class="stat-item"><span class="stat-label">|V|</span><span class="stat-value mono" id="statMag">&mdash;</span></div>
-      <div class="stat-item" id="statAngleWrap"><span class="stat-label" id="statAngleLabel">Angle from +x</span><span class="stat-value mono" id="statAngle">&mdash;</span></div>
-      <div class="stat-item" id="statDirWrap" style="display:none;"><span class="stat-label">Direction angles (&alpha;, &beta;, &gamma;)</span><span class="stat-value mono" id="statDir">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Angle &theta; from +x</span><span class="stat-value mono" id="statAngle">&mdash;</span></div>
     </div>
+    <div class="stat-grid" id="statGrid3D" style="display:none;">
+      <div class="stat-item"><span class="stat-label">|V|</span><span class="stat-value mono" id="statMag3">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Elevation &phi; (from ground)</span><span class="stat-value mono" id="statElev">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Azimuth &theta; (from +x, in ground)</span><span class="stat-value mono" id="statAzim">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Ground shadow &rho;</span><span class="stat-value mono" id="statRho">&mdash;</span></div>
+    </div>
+
+    <div class="trig-panel" id="trigPanel2D">
+      <div class="trig-group-label">Resolving V with sin &amp; cos</div>
+      <div class="trig-row trig-x"><span class="trig-lhs">V<sub>x</sub> = |V| cos&theta; =</span><span class="trig-eq mono" id="trigVx">&mdash;</span></div>
+      <div class="trig-row trig-y"><span class="trig-lhs">V<sub>y</sub> = |V| sin&theta; =</span><span class="trig-eq mono" id="trigVy">&mdash;</span></div>
+    </div>
+    <div class="trig-panel" id="trigPanel3D" style="display:none;">
+      <div class="trig-group-label">Triangle 1 &mdash; V down to the ground (elevation &phi;)</div>
+      <div class="trig-row"><span class="trig-lhs">&rho; = |V| cos&phi; =</span><span class="trig-eq mono" id="trigRho">&mdash;</span></div>
+      <div class="trig-row trig-y"><span class="trig-lhs">V<sub>y</sub> = |V| sin&phi; =</span><span class="trig-eq mono" id="trigVy3">&mdash;</span></div>
+      <div class="trig-group-label">Triangle 2 &mdash; the ground shadow (azimuth &theta;)</div>
+      <div class="trig-row trig-x"><span class="trig-lhs">V<sub>x</sub> = &rho; cos&theta; =</span><span class="trig-eq mono" id="trigVx3">&mdash;</span></div>
+      <div class="trig-row trig-z"><span class="trig-lhs">V<sub>z</sub> = &rho; sin&theta; =</span><span class="trig-eq mono" id="trigVz3">&mdash;</span></div>
+    </div>
+
     <p class="explain-text" id="explainText"></p>
   </section>
 
-  <footer>Drag V &mdash; the walk always lands exactly where the arrow points</footer>
+  <footer>Drag V &mdash; the triangle always lands exactly where the arrow points</footer>
 </div>
 
 <script>
@@ -329,8 +365,9 @@
   "use strict";
 
   // ============ MATH: 2D ============
+  function toRad(d) { return (d * Math.PI) / 180; }
   function comps2(v) {
-    const r = (v.angle * Math.PI) / 180;
+    const r = toRad(v.angle);
     return { x: v.mag * Math.cos(r), y: v.mag * Math.sin(r) };
   }
   function normalizeDeg(d) { let x = d % 360; if (x < 0) x += 360; return x; }
@@ -338,6 +375,18 @@
   // ============ MATH: 3D ============
   function dot3(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
   function length3(a) { return Math.sqrt(dot3(a, a)); }
+  // spherical (mag, elevation from the ground plane, azimuth from +x within
+  // the ground plane) -> Cartesian, via two right triangles: first split V
+  // into a vertical part and a horizontal "shadow" of length rho, then split
+  // that shadow into x and z.
+  function sph3(v) {
+    const phi = toRad(v.elev), theta = toRad(v.azim);
+    const rho = v.mag * Math.cos(phi);
+    const y = v.mag * Math.sin(phi);
+    const x = rho * Math.cos(theta);
+    const z = rho * Math.sin(theta);
+    return { x: x, y: y, z: z, rho: rho };
+  }
   function rotatePoint(p, yaw, pitch) {
     const cy = Math.cos(yaw), sy = Math.sin(yaw);
     const x1 = p.x * cy + p.z * sy;
@@ -366,11 +415,14 @@
   function fmtTerm(n, symbolHtml) {
     return (n < -1e-9 ? '−' : '') + fmt(Math.abs(n)) + symbolHtml;
   }
+  function fmtEq(mag, fn, angleDeg, result) {
+    return fmt(mag) + ' × ' + fn + '(' + fmt(angleDeg, 1) + '°) = ' + fmt(result);
+  }
 
   // ============ STATE ============
   let view = '2d'; // '2d' | '3d'
   let V2 = { mag: 6, angle: 40 };
-  let V3 = { x: 4, y: 3, z: 2 };
+  let V3 = { mag: 6, elev: 20, azim: 50 };
 
   // ============ DOM ============
   const canvas = document.getElementById('scene');
@@ -382,15 +434,25 @@
   const resetViewBtn = document.getElementById('resetViewBtn');
   const playBuildBtn = document.getElementById('playBuildBtn');
   const vPolarInputs = document.getElementById('vPolarInputs');
-  const vCartInputs = document.getElementById('vCartInputs');
+  const vSphInputs = document.getElementById('vSphInputs');
   const compsV = document.getElementById('compsV');
   const notation = document.getElementById('notation');
+  const statGrid2D = document.getElementById('statGrid2D');
+  const statGrid3D = document.getElementById('statGrid3D');
   const statMag = document.getElementById('statMag');
-  const statAngleWrap = document.getElementById('statAngleWrap');
-  const statAngleLabel = document.getElementById('statAngleLabel');
   const statAngle = document.getElementById('statAngle');
-  const statDirWrap = document.getElementById('statDirWrap');
-  const statDir = document.getElementById('statDir');
+  const statMag3 = document.getElementById('statMag3');
+  const statElev = document.getElementById('statElev');
+  const statAzim = document.getElementById('statAzim');
+  const statRho = document.getElementById('statRho');
+  const trigPanel2D = document.getElementById('trigPanel2D');
+  const trigPanel3D = document.getElementById('trigPanel3D');
+  const trigVx = document.getElementById('trigVx');
+  const trigVy = document.getElementById('trigVy');
+  const trigRho = document.getElementById('trigRho');
+  const trigVy3 = document.getElementById('trigVy3');
+  const trigVx3 = document.getElementById('trigVx3');
+  const trigVz3 = document.getElementById('trigVz3');
   const explainText = document.getElementById('explainText');
 
   // ============ VIEW TABS ============
@@ -410,12 +472,12 @@
 
   const VIEW_COPY = {
     '2d': {
-      intro: 'î and ĵ are the unit vectors along x and y — each exactly length 1. Any vector is just its components times these: V = Vxî + Vyĵ. Drag magnitude and angle, and watch V get built one unit vector at a time.',
-      hint: 'Walk along î, then ĵ, and you land exactly on V',
+      intro: 'Any vector resolves into components with sin and cos: Vx = |V| cosθ, Vy = |V| sinθ — the classic right triangle, hypotenuse |V|, angle θ from the x-axis. Drag magnitude and angle and watch the triangle move with it.',
+      hint: 'The shaded triangle is the same one from your textbook',
     },
     '3d': {
-      intro: 'One more dimension, one more unit vector: î, ĵ, and k̂ point along x, y, and z. Any vector in space is V = Vxî + Vyĵ + Vzk̂. Drag to orbit, drag the sliders, and watch V get built one axis at a time.',
-      hint: 'Drag to rotate — walk along î, then ĵ, then k̂, and you land exactly on V',
+      intro: 'In 3D, resolving V takes two right triangles. First, V drops straight down to the ground, splitting into a vertical part and a horizontal "shadow" of length ρ (using the elevation angle φ). Then that shadow splits into x and z within the ground plane (using the azimuth angle θ).',
+      hint: 'Drag to rotate — the ground triangle sets x and z, the vertical triangle sets y',
     },
   };
 
@@ -429,13 +491,15 @@
   }
   function updateUIForView() {
     const is2D = view === '2d';
-    introText.textContent = VIEW_COPY[view].intro;
+    introText.innerHTML = VIEW_COPY[view].intro.replace('Vx', 'V<sub>x</sub>').replace('Vy', 'V<sub>y</sub>');
     viewportHint.textContent = VIEW_COPY[view].hint;
     vPolarInputs.style.display = is2D ? '' : 'none';
-    vCartInputs.style.display = is2D ? 'none' : '';
+    vSphInputs.style.display = is2D ? 'none' : '';
     resetViewBtn.style.display = is2D ? 'none' : '';
-    statAngleWrap.style.display = is2D ? '' : 'none';
-    statDirWrap.style.display = is2D ? 'none' : '';
+    statGrid2D.style.display = is2D ? '' : 'none';
+    statGrid3D.style.display = is2D ? 'none' : '';
+    trigPanel2D.style.display = is2D ? '' : 'none';
+    trigPanel3D.style.display = is2D ? 'none' : '';
     sceneWrap.classList.toggle('orbitable', !is2D);
   }
 
@@ -463,15 +527,17 @@
   function onVectorChange() { buildAnim = null; render(); }
   bindComponent('vMagSlider', 'vMagValue', V2, 'mag', 0, 8, 2, onVectorChange);
   bindComponent('vAngleSlider', 'vAngleValue', V2, 'angle', -720, 720, 0, onVectorChange);
-  bindComponent('v3xSlider', 'v3xValue', V3, 'x', -5, 5, 2, onVectorChange);
-  bindComponent('v3ySlider', 'v3yValue', V3, 'y', -5, 5, 2, onVectorChange);
-  bindComponent('v3zSlider', 'v3zValue', V3, 'z', -5, 5, 2, onVectorChange);
+  bindComponent('v3MagSlider', 'v3MagValue', V3, 'mag', 0, 8, 2, onVectorChange);
+  bindComponent('v3ElevSlider', 'v3ElevValue', V3, 'elev', -90, 90, 0, onVectorChange);
+  bindComponent('v3AzimSlider', 'v3AzimValue', V3, 'azim', -720, 720, 0, onVectorChange);
 
   // ============ "PLAY BUILD" ANIMATION ============
-  // One-shot: walks the unit-vector path in from scratch, segment by segment,
-  // instead of just always showing the finished construction. Purely a
+  // One-shot: walks the construction in from scratch, segment by segment,
+  // instead of just always showing the finished triangle(s). Purely a
   // narration aid -- the tool already shows the full decomposition live with
-  // no animation needed, this just re-plays how it was assembled.
+  // no animation needed, this just re-plays how it was assembled. 3D walks
+  // the ground triangle first (i, then k), then rises to V (j) -- matching
+  // the two-triangle construction order, not just x-y-z.
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let buildAnim = null; // { start, duration, segCount, progress }
   let buildLoopActive = false; // guards against stacking a second rAF chain on repeat clicks
@@ -479,8 +545,6 @@
 
   function playBuild() {
     const segCount = view === '3d' ? 3 : 2;
-    // restart from scratch even if a build is already mid-playback -- but
-    // reuse the existing rAF chain rather than starting a second one
     buildAnim = { start: null, duration: segCount * 750, segCount: segCount, progress: 0 };
     if (!buildLoopActive) {
       buildLoopActive = true;
@@ -643,6 +707,43 @@
     ctx.restore();
   }
 
+  function drawFilledTriangle(p1, p2, p3, w, h, fillColor, strokeColor, alpha) {
+    const s1 = toScreen(p1, w, h), s2 = toScreen(p2, w, h), s3 = toScreen(p3, w, h);
+    ctx.save();
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.lineTo(s3.x, s3.y); ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // an arc traced by a parametric point function point(t) for t in [0, sweepRad]
+  function drawArc(pointFn, sweepRad, w, h, color, radiusLabel) {
+    const steps = Math.max(8, Math.round((Math.abs(sweepRad) * 180) / Math.PI / 6));
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * sweepRad;
+      const s = toScreen(pointFn(t), w, h);
+      if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+    }
+    ctx.stroke();
+    if (radiusLabel) {
+      const mid = toScreen(pointFn(sweepRad * 0.5), w, h);
+      ctx.font = '700 12px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillStyle = color;
+      ctx.fillText(radiusLabel, mid.x + 6, mid.y + 4);
+    }
+    ctx.restore();
+  }
+
   // ============ DRAWING: 2D ============
   function drawGrid2D(w, h) {
     const gridColor = 'rgba(91, 74, 150, 0.28)';
@@ -672,11 +773,17 @@
     drawArrow({ x: 0, y: 0 }, { x: 0, y: 1 }, w, h, faint, 'ĵ', 0.75, 2);
 
     const Vc = comps2(V2);
-    drawArrow({ x: 0, y: 0 }, Vc, w, h, cyan, undefined, 0.3, 2);
-
     const p0 = { x: 0, y: 0 };
     const p1 = { x: Vc.x, y: 0 };
     const p2 = Vc;
+
+    drawFilledTriangle(p0, p1, p2, w, h, 'rgba(255, 216, 77, 0.14)', 'rgba(255, 216, 77, 0.4)');
+
+    const radius = Math.max(0.5, Math.min(1.3, V2.mag * 0.35));
+    drawArc(function (t) { return { x: radius * Math.cos(t), y: radius * Math.sin(t) }; }, toRad(V2.angle), w, h, cyan, 'θ');
+
+    drawArrow(p0, Vc, w, h, cyan, undefined, 0.3, 2);
+
     const progress = buildAnim ? buildAnim.progress : undefined;
     const r0 = segReveal(0, 2, progress), r1 = segReveal(1, 2, progress);
     if (r0 > 0) drawArrow(p0, lerpPt(p0, p1, r0), w, h, gold, r0 >= 0.999 ? 'î' : undefined);
@@ -713,7 +820,8 @@
   }
 
   function drawScene3D(w, h) {
-    const points = [{ x: 0, y: 0, z: 0 }, V3, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }];
+    const Vc = sph3(V3);
+    const points = [{ x: 0, y: 0, z: 0 }, Vc, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }];
     scale3 = computeFitScale3D(points, w, h);
     toScreen = toScreen3D;
     drawGrid3D(w, h);
@@ -724,20 +832,39 @@
     drawArrow({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, w, h, faint, 'ĵ', 0.75, 2);
     drawArrow({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, w, h, faint, 'k̂', 0.75, 2);
 
-    drawArrow({ x: 0, y: 0, z: 0 }, V3, w, h, cyan, undefined, 0.3, 2);
+    const O = { x: 0, y: 0, z: 0 };
+    const p1 = { x: Vc.x, y: 0, z: 0 };      // x-leg foot -- also the right-angle corner of the ground triangle
+    const P = { x: Vc.x, y: 0, z: Vc.z };    // ground-shadow point -- corner shared by both triangles
+    const p3 = Vc;                            // V's actual tip
 
-    const p0 = { x: 0, y: 0, z: 0 };
-    const p1 = { x: V3.x, y: 0, z: 0 };
-    const p2 = { x: V3.x, y: V3.y, z: 0 };
-    const p3 = V3;
     const progress = buildAnim ? buildAnim.progress : undefined;
-    const r0 = segReveal(0, 3, progress), r1 = segReveal(1, 3, progress), r2 = segReveal(2, 3, progress);
-    if (r0 > 0) drawArrow(p0, lerpPt(p0, p1, r0), w, h, gold, r0 >= 0.999 ? 'î' : undefined);
-    if (r1 > 0) drawArrow(p1, lerpPt(p1, p2, r1), w, h, accent, r1 >= 0.999 ? 'ĵ' : undefined);
-    if (r2 > 0) drawArrow(p2, lerpPt(p2, p3, r2), w, h, green, r2 >= 0.999 ? 'k̂' : undefined);
+    const r0 = segReveal(0, 3, progress); // O -> p1 (i, x-leg)
+    const r1 = segReveal(1, 3, progress); // p1 -> P (k, z-leg)
+    const r2 = segReveal(2, 3, progress); // P -> tip (j, vertical rise)
+
+    // ground triangle (the azimuth decomposition, lying flat where the grid
+    // already is) fades in once both its legs are drawn
+    drawFilledTriangle(O, p1, P, w, h, 'rgba(255, 216, 77, 0.14)', 'rgba(255, 216, 77, 0.4)', Math.min(r0, r1));
+    // vertical triangle (the elevation decomposition) fades in with the rise
+    drawFilledTriangle(O, P, p3, w, h, 'rgba(255, 77, 126, 0.14)', 'rgba(255, 77, 126, 0.4)', r2);
+
+    // azimuth arc: in the ground plane, sweeping from +x to the shadow's direction
+    const azimRadius = Math.max(0.5, Math.min(1.3, V3.mag * 0.3));
+    drawArc(function (t) { return { x: azimRadius * Math.cos(t), y: 0, z: azimRadius * Math.sin(t) }; }, toRad(V3.azim), w, h, gold, 'θ');
+    // elevation arc: in the vertical plane through V, sweeping from horizontal up to V
+    const azimRad = toRad(V3.azim);
+    const hx = Math.cos(azimRad), hz = Math.sin(azimRad);
+    const elevRadius = Math.max(0.5, Math.min(1.3, V3.mag * 0.3));
+    drawArc(function (t) { return { x: elevRadius * Math.cos(t) * hx, y: elevRadius * Math.sin(t), z: elevRadius * Math.cos(t) * hz }; }, toRad(V3.elev), w, h, accent, 'φ');
+
+    drawArrow(O, Vc, w, h, cyan, undefined, 0.3, 2);
+
+    if (r0 > 0) drawArrow(O, lerpPt(O, p1, r0), w, h, gold, r0 >= 0.999 ? 'î' : undefined);
+    if (r1 > 0) drawArrow(p1, lerpPt(p1, P, r1), w, h, green, r1 >= 0.999 ? 'k̂' : undefined);
+    if (r2 > 0) drawArrow(P, lerpPt(P, p3, r2), w, h, accent, r2 >= 0.999 ? 'ĵ' : undefined);
 
     if (!buildAnim || buildAnim.progress >= 1) {
-      const sp = toScreen(V3, w, h);
+      const sp = toScreen(Vc, w, h);
       ctx.save(); ctx.fillStyle = cyan; ctx.beginPath(); ctx.arc(sp.x, sp.y, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
   }
@@ -752,15 +879,21 @@
   }
 
   // fades each notation term in alongside its segment while build-playing;
-  // snaps back to fully visible once the animation isn't running
+  // snaps back to fully visible once the animation isn't running. Segment
+  // order for 3D is [i, k, j] (ground first, then rise), so the notation
+  // spans -- always written i, j, k -- are indexed accordingly.
   function updateNotationOpacity() {
     const spans = notation.querySelectorAll('span');
     if (!buildAnim) {
       spans.forEach(function (s) { s.style.opacity = 1; });
       return;
     }
-    const segCount = view === '3d' ? 3 : 2;
-    spans.forEach(function (s, i) { s.style.opacity = String(0.15 + 0.85 * segReveal(i, segCount, buildAnim.progress)); });
+    if (view === '3d') {
+      const order = [0, 2, 1]; // notation span index -> build segment index (i, j, k -> seg 0, 2, 1)
+      spans.forEach(function (s, i) { s.style.opacity = String(0.15 + 0.85 * segReveal(order[i], 3, buildAnim.progress)); });
+    } else {
+      spans.forEach(function (s, i) { s.style.opacity = String(0.15 + 0.85 * segReveal(i, 2, buildAnim.progress)); });
+    }
   }
 
   function render() {
@@ -778,26 +911,27 @@
       const jTerm = '<span class="term-j">' + fmtTerm(Vc.y, 'ĵ') + '</span>';
       notation.innerHTML = 'V = ' + iTerm + ' + ' + jTerm;
       statMag.textContent = fmt(V2.mag);
-      statAngleLabel.textContent = 'Angle from +x';
       statAngle.textContent = fmt(normalizeDeg(V2.angle), 1) + '°';
-      explainText.innerHTML = 'Walk ' + fmt(Vc.x) + ' along <strong style="color:var(--gold)">î</strong>, then ' + fmt(Vc.y) + ' along <strong style="color:var(--accent)">ĵ</strong>, and you land exactly on <strong style="color:var(--cyan)">V</strong>. That walk <em>is</em> the sum V<sub>x</sub>î + V<sub>y</sub>ĵ — unit-vector notation is just this same component breakdown, written as an equation instead of drawn as a path.';
+      trigVx.textContent = fmtEq(V2.mag, 'cos', V2.angle, Vc.x);
+      trigVy.textContent = fmtEq(V2.mag, 'sin', V2.angle, Vc.y);
+      explainText.innerHTML = 'Walk ' + fmt(Vc.x) + ' along <strong style="color:var(--gold)">î</strong>, then ' + fmt(Vc.y) + ' along <strong style="color:var(--accent)">ĵ</strong>, and you land exactly on <strong style="color:var(--cyan)">V</strong>. The shaded triangle has hypotenuse |V|, angle θ at the origin, and legs Vx (adjacent) and Vy (opposite) — exactly SOH-CAH-TOA, just drawn instead of memorized.';
     } else {
-      const mag = length3(V3);
-      compsV.textContent = '(' + fmt(V3.x) + ', ' + fmt(V3.y) + ', ' + fmt(V3.z) + ')';
-      const iTerm = '<span class="term-i">' + fmtTerm(V3.x, 'î') + '</span>';
-      const jTerm = '<span class="term-j">' + fmtTerm(V3.y, 'ĵ') + '</span>';
-      const kTerm = '<span class="term-k">' + fmtTerm(V3.z, 'k̂') + '</span>';
+      const Vc = sph3(V3);
+      const mag = length3(Vc);
+      compsV.textContent = '(' + fmt(Vc.x) + ', ' + fmt(Vc.y) + ', ' + fmt(Vc.z) + ')';
+      const iTerm = '<span class="term-i">' + fmtTerm(Vc.x, 'î') + '</span>';
+      const jTerm = '<span class="term-j">' + fmtTerm(Vc.y, 'ĵ') + '</span>';
+      const kTerm = '<span class="term-k">' + fmtTerm(Vc.z, 'k̂') + '</span>';
       notation.innerHTML = 'V = ' + iTerm + ' + ' + jTerm + ' + ' + kTerm;
-      statMag.textContent = fmt(mag) + ' = √(' + fmt(V3.x) + '² + ' + fmt(V3.y) + '² + ' + fmt(V3.z) + '²)';
-      if (mag > 1e-6) {
-        const alpha = (Math.acos(Math.max(-1, Math.min(1, V3.x / mag))) * 180) / Math.PI;
-        const beta = (Math.acos(Math.max(-1, Math.min(1, V3.y / mag))) * 180) / Math.PI;
-        const gamma = (Math.acos(Math.max(-1, Math.min(1, V3.z / mag))) * 180) / Math.PI;
-        statDir.textContent = fmt(alpha, 1) + '°, ' + fmt(beta, 1) + '°, ' + fmt(gamma, 1) + '°';
-      } else {
-        statDir.textContent = '—';
-      }
-      explainText.innerHTML = 'Walk ' + fmt(V3.x) + ' along <strong style="color:var(--gold)">î</strong>, then ' + fmt(V3.y) + ' along <strong style="color:var(--gold)">ĵ</strong>, then ' + fmt(V3.z) + ' along <strong style="color:var(--accent)">k̂</strong>, and you land exactly on <strong style="color:var(--cyan)">V</strong>. The direction angles &alpha;, &beta;, &gamma; are what V leans away from each axis — all 90&deg; would mean V points equally off every axis; a small angle means V hugs that axis closely.';
+      statMag3.textContent = fmt(mag);
+      statElev.textContent = fmt(V3.elev, 1) + '°';
+      statAzim.textContent = fmt(normalizeDeg(V3.azim), 1) + '°';
+      statRho.textContent = fmt(Vc.rho);
+      trigRho.textContent = fmtEq(V3.mag, 'cos', V3.elev, Vc.rho);
+      trigVy3.textContent = fmtEq(V3.mag, 'sin', V3.elev, Vc.y);
+      trigVx3.textContent = fmtEq(Vc.rho, 'cos', V3.azim, Vc.x);
+      trigVz3.textContent = fmtEq(Vc.rho, 'sin', V3.azim, Vc.z);
+      explainText.innerHTML = 'Two right triangles, one after another: the <strong style="color:var(--accent)">vertical</strong> one turns |V| and elevation φ into the ground shadow ρ and height Vy; the <strong style="color:var(--gold)">ground</strong> one turns that shadow ρ and azimuth θ into Vx and Vz. Rotate the scene — the ground triangle sits flush with the floor grid because ρ, by definition, never leaves it.';
     }
   }
 
