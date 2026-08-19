@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vector Balancing Lab</title>
+<meta name="description" content="The classic force-table lab: hang masses over pulleys around a ring and see whether their vector sum leaves it balanced at the center." />
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('physics-tools-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<style>
+  :root {
+    --bg: #F3EEE1;
+    --surface: #FFFFFF;
+    --surface-2: #EAE1C8;
+    --ink: #1B1730;
+    --ink-soft: #4A4368;
+    --ink-faint: #746A9B;
+    --line: #D9CFA8;
+    --line-bright: #4A3B85;
+    --accent: #C81155;
+    --cyan: #037A6E;
+    --gold: #96690A;
+    --positive: #157F3C;
+    --danger: #B7401F;
+    --shadow-color: #000000;
+    --scanline-alpha: 0.045;
+    --notch: 10px;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0A18;
+      --surface: #17132B;
+      --surface-2: #1F1A3B;
+      --ink: #F4EFE6;
+      --ink-soft: #B7ADD9;
+      --ink-faint: #7B6FA6;
+      --line: #2A2350;
+      --line-bright: #5B4A96;
+      --accent: #FF4D7E;
+      --cyan: #33F1E6;
+      --gold: #FFD84D;
+      --positive: #4ADE80;
+      --danger: #FF6B4A;
+      --scanline-alpha: 0.14;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B0A18;
+    --surface: #17132B;
+    --surface-2: #1F1A3B;
+    --ink: #F4EFE6;
+    --ink-soft: #B7ADD9;
+    --ink-faint: #7B6FA6;
+    --line: #2A2350;
+    --line-bright: #5B4A96;
+    --accent: #FF4D7E;
+    --cyan: #33F1E6;
+    --gold: #FFD84D;
+    --positive: #4ADE80;
+    --danger: #FF6B4A;
+    --scanline-alpha: 0.14;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+    padding: 2.25rem 1.25rem 4rem;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, var(--scanline-alpha)) 0px,
+      rgba(0, 0, 0, var(--scanline-alpha)) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.85rem;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 2px;
+  }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  /* ---------- 8-bit panel utility ---------- */
+  .panel-8bit { position: relative; z-index: 0; }
+  .panel-8bit::before, .panel-8bit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+  }
+  .panel-8bit::after { background: var(--shadow-color); transform: translate(6px, 6px); z-index: -2; }
+  .panel-8bit::before { background: var(--surface); border: 3px solid var(--line-bright); z-index: -1; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 3px solid var(--line-bright);
+    padding-bottom: 1.4rem;
+  }
+  .masthead-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .eyebrow { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+  .eyebrow::before { content: '// '; opacity: 0.7; }
+  header.masthead h1 { font-size: 2.1rem; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 var(--bg); }
+  header.masthead p {
+    margin: 0.3rem 0 0; color: var(--ink-soft); max-width: 68ch; font-size: 0.92rem;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
+
+  /* ---------- chips ---------- */
+  .mode-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .chip {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip:active { transform: translate(3px, 3px); box-shadow: none; }
+  .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
+
+  /* ---------- viewport ---------- */
+  .viewport-panel { padding: 0.9rem; }
+  .viewport-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .viewport-hint { font-size: 0.76rem; color: var(--ink-faint); }
+  .viewport-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .btn-ghost {
+    flex: none;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    color: var(--ink-soft);
+    border-radius: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost:active { transform: translate(3px, 3px); box-shadow: none; }
+  .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost:disabled:active { transform: none; box-shadow: 3px 3px 0 var(--shadow-color); }
+  .btn-primary {
+    flex: none;
+    background: var(--accent);
+    color: #fff;
+    border: 3px solid var(--bg);
+    border-radius: 0;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 3px 3px 0 var(--shadow-color);
+    transition: transform 0.05s linear, box-shadow 0.05s linear;
+  }
+  .btn-primary:hover { filter: brightness(1.12); }
+  .btn-primary:active { transform: translate(3px, 3px); box-shadow: none; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+
+  .scene-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background: var(--bg);
+    border: 2px solid var(--line-bright);
+    overflow: hidden;
+  }
+  .scene-wrap canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---------- input cards ---------- */
+  .cards-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+    gap: 1.2rem;
+  }
+  .input-card { padding: 1.1rem 1.2rem 1.2rem; }
+  .input-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.8rem;
+  }
+  .input-name { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+  .force-swatch { display: inline-block; width: 0.85rem; height: 0.85rem; border: 2px solid var(--bg); box-shadow: 1px 1px 0 var(--shadow-color); flex: none; }
+  .input-sub { font-size: 0.78rem; color: var(--ink-faint); }
+  .card-remove {
+    flex: none;
+    background: transparent;
+    border: 2px solid var(--line-bright);
+    color: var(--ink-faint);
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+  }
+  .card-remove:hover { border-color: var(--danger); color: var(--danger); }
+  .comp-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .comp-row:last-child { margin-bottom: 0; }
+  .comp-label { flex: none; width: 3.6rem; font-size: 0.72rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  input[type="range"].comp-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 0.4rem;
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    cursor: pointer;
+  }
+  input[type="range"].comp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.9rem;
+    height: 1.3rem;
+    background: var(--thumb-color, var(--cyan));
+    border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color);
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"].comp-slider::-moz-range-thumb {
+    width: 0.9rem; height: 1.3rem; background: var(--thumb-color, var(--cyan)); border: 2px solid var(--bg);
+    box-shadow: 1px 1px 0 var(--shadow-color); cursor: pointer; border-radius: 0;
+  }
+  input.comp-value {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.28rem 0.4rem;
+    border-radius: 0;
+    border: 2px solid var(--line-bright);
+    background: var(--bg);
+    color: var(--ink);
+    width: 4.1rem;
+    text-align: right;
+    flex: none;
+  }
+
+  /* ---------- readouts / formula panel ---------- */
+  .readout-panel { padding: 1.2rem 1.4rem 1.4rem; }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 1.1rem;
+  }
+  .stat-item { display: flex; flex-direction: column; gap: 0.25rem; }
+  .stat-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-faint); font-weight: 700; }
+  .stat-value { font-size: 1rem; font-weight: 700; color: var(--ink); }
+  .stat-value.accent-positive { color: var(--positive); }
+  .stat-value.accent-danger { color: var(--danger); }
+
+  .verdict-banner {
+    padding: 0.9rem 1.1rem;
+    border: 2px dashed var(--line-bright);
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+  .verdict-banner .vb-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.35rem; }
+  .verdict-banner .vb-value { font-size: 1.5rem; font-weight: 700; text-shadow: 2px 2px 0 var(--shadow-color); }
+  .verdict-banner .vb-value.accent-positive { color: var(--positive); }
+  .verdict-banner .vb-value.accent-danger { color: var(--danger); }
+  .verdict-banner .vb-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 0.5rem; }
+  .verdict-banner .vb-sub strong { color: var(--ink); }
+
+  .trig-panel {
+    background: var(--surface-2);
+    border: 2px solid var(--line-bright);
+    padding: 0.9rem 1.05rem;
+    margin-bottom: 1.1rem;
+  }
+  .trig-group-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 700; margin-bottom: 0.4rem; }
+  .trig-group-label:not(:first-child) { margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px dashed var(--line-bright); }
+  .trig-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; font-size: 0.88rem; padding: 0.15rem 0; }
+  .trig-lhs { color: var(--ink-soft); flex: none; }
+  .trig-eq { color: var(--gold); font-weight: 700; }
+
+  .explain-text { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; }
+  .explain-text strong { color: var(--ink); }
+  .explain-text em { color: var(--ink); }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    padding-top: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+  footer::after { content: '_'; color: var(--cyan); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    footer::after { animation: none; opacity: 1; }
+    .chip, .btn-ghost, .btn-primary { transition: none; }
+  }
+
+  @media (max-width: 640px) {
+    header.masthead h1 { font-size: 1.6rem; }
+    .verdict-banner .vb-value { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-top">
+      <div class="eyebrow">Vectors &middot; Equilibrium</div>
+      <button class="theme-toggle" id="themeToggleBtn" type="button" title="Cycle theme: auto / light / dark">&#9681; Auto</button>
+    </div>
+    <h1>Vector Balancing Lab</h1>
+    <p>The classic force table: masses hang over pulleys around a ring, each pulling with a force equal to its weight. The ring sits still at the center only when every pull cancels out &mdash; when the vector sum of the forces is zero. Drag any mass or angle and watch it drift.</p>
+  </header>
+
+  <section class="viewport-panel panel-8bit" aria-label="Force table">
+    <div class="viewport-toolbar">
+      <div class="viewport-hint">Ring color shows how far from equilibrium you are</div>
+      <div class="viewport-actions">
+        <div class="mode-chips">
+          <button class="chip" id="equilibrantChip" type="button" aria-pressed="false">Show equilibrant</button>
+        </div>
+        <button class="btn-ghost" id="removeForceBtn" type="button">&minus; Remove force</button>
+        <button class="btn-ghost" id="addForceBtn" type="button">+ Add force</button>
+        <button class="btn-ghost" id="resetBtn" type="button">&#8635; Reset</button>
+      </div>
+    </div>
+    <div class="scene-wrap" id="sceneWrap">
+      <canvas id="scene"></canvas>
+    </div>
+  </section>
+
+  <section class="cards-row" id="cardsRow"></section>
+
+  <section class="readout-panel panel-8bit" aria-label="Results">
+    <div class="verdict-banner">
+      <div class="vb-label">Is the ring balanced?</div>
+      <div class="vb-value mono" id="verdictValue">&mdash;</div>
+      <div class="vb-sub" id="verdictSub"></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-item"><span class="stat-label">&Sigma;Fx</span><span class="stat-value mono" id="statFx">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">&Sigma;Fy</span><span class="stat-value mono" id="statFy">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">|F_net|</span><span class="stat-value mono accent-danger" id="statMag">&mdash;</span></div>
+      <div class="stat-item"><span class="stat-label">Direction</span><span class="stat-value mono" id="statAngle">&mdash;</span></div>
+    </div>
+    <div class="trig-panel">
+      <div class="trig-group-label">Net force (each pull resolved into x/y, then summed)</div>
+      <div class="trig-row"><span class="trig-lhs">&Sigma;Fx = &Sigma; Fᵢ cos&theta;ᵢ =</span><span class="trig-eq mono" id="trigFx">&mdash;</span></div>
+      <div class="trig-row"><span class="trig-lhs">&Sigma;Fy = &Sigma; Fᵢ sin&theta;ᵢ =</span><span class="trig-eq mono" id="trigFy">&mdash;</span></div>
+      <div class="trig-row"><span class="trig-lhs">|F_net| = &radic;(&Sigma;Fx&sup2; + &Sigma;Fy&sup2;) =</span><span class="trig-eq mono" id="trigMag">&mdash;</span></div>
+      <div class="trig-group-label">What it would take to balance the table</div>
+      <div class="trig-row"><span class="trig-lhs">equilibrant = &minus;F_net, so magnitude =</span><span class="trig-eq mono" id="trigEqMag">&mdash;</span></div>
+      <div class="trig-row"><span class="trig-lhs">direction = &theta;_net + 180&deg; =</span><span class="trig-eq mono" id="trigEqAngle">&mdash;</span></div>
+      <div class="trig-row"><span class="trig-lhs">as a hanging mass, that's</span><span class="trig-eq mono" id="trigEqMass">&mdash;</span></div>
+    </div>
+    <p class="explain-text" id="explainText"></p>
+  </section>
+
+  <footer>Drag any mass or angle &mdash; the ring always shows exactly where that leaves you</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ THEME TOGGLE ============
+  const THEME_KEY = 'physics-tools-theme';
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  function getStoredTheme() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
+  function setStoredTheme(v) { try { if (v === null) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, v); } catch (e) {} }
+  function themeLabel(v) { return v === 'light' ? '☀ Light' : v === 'dark' ? '☾ Dark' : '◑ Auto'; }
+  function updateThemeLabel() { themeToggleBtn.innerHTML = themeLabel(getStoredTheme()); }
+  themeToggleBtn.addEventListener('click', function () {
+    const cur = getStoredTheme();
+    const next = cur === null ? 'light' : cur === 'light' ? 'dark' : null;
+    setStoredTheme(next);
+    if (next) document.documentElement.setAttribute('data-theme', next);
+    else document.documentElement.removeAttribute('data-theme');
+    updateThemeLabel();
+    drawScene();
+  });
+  updateThemeLabel();
+
+  // ============ PHYSICS ============
+  const G = 9.8; // m/s^2, standard intro-physics constant
+  function forceOfMass(massGrams) { return (massGrams / 1000) * G; } // Newtons
+  function netForce(forces) {
+    let fx = 0, fy = 0;
+    forces.forEach(function (f) {
+      const F = forceOfMass(f.mass);
+      const rad = f.angle * Math.PI / 180;
+      fx += F * Math.cos(rad);
+      fy += F * Math.sin(rad);
+    });
+    const mag = Math.sqrt(fx * fx + fy * fy);
+    let angle = Math.atan2(fy, fx) * 180 / Math.PI;
+    if (angle < 0) angle += 360;
+    return { fx: fx, fy: fy, mag: mag, angle: angle };
+  }
+  function equilibrantOf(net) {
+    let angle = net.angle + 180;
+    if (angle >= 360) angle -= 360;
+    return { mag: net.mag, angle: angle };
+  }
+
+  const BALANCE_EPS = 0.05;   // N -- below this, call it balanced
+  const MARGINAL_EPS = 0.3;   // N -- below this, call it close
+
+  // ============ STATE ============
+  const FORCE_COLORS = ['--cyan', '--accent', '--gold', '--ink-soft'];
+  const MAX_FORCES = 4, MIN_FORCES = 2;
+  let forces = [
+    { name: 'A', mass: 100, angle: 0 },
+    { name: 'B', mass: 100, angle: 120 },
+    { name: 'C', mass: 100, angle: 240 },
+  ];
+  let showEquilibrant = false;
+
+  // ring animation state: single shared target + single guarded rAF loop
+  let ringPos = { x: 0, y: 0 };   // world units, origin = table center
+  let ringTarget = { x: 0, y: 0 };
+  let ringLoopActive = false;
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ============ DOM ============
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const sceneWrap = document.getElementById('sceneWrap');
+  const cardsRow = document.getElementById('cardsRow');
+  const addForceBtn = document.getElementById('addForceBtn');
+  const removeForceBtn = document.getElementById('removeForceBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const equilibrantChip = document.getElementById('equilibrantChip');
+
+  const verdictValue = document.getElementById('verdictValue');
+  const verdictSub = document.getElementById('verdictSub');
+  const statFx = document.getElementById('statFx');
+  const statFy = document.getElementById('statFy');
+  const statMag = document.getElementById('statMag');
+  const statAngle = document.getElementById('statAngle');
+  const trigFx = document.getElementById('trigFx');
+  const trigFy = document.getElementById('trigFy');
+  const trigMag = document.getElementById('trigMag');
+  const trigEqMag = document.getElementById('trigEqMag');
+  const trigEqAngle = document.getElementById('trigEqAngle');
+  const trigEqMass = document.getElementById('trigEqMass');
+  const explainText = document.getElementById('explainText');
+
+  // ============ FORMATTING ============
+  function fmt(n, decimals) {
+    if (n === null || n === undefined || !isFinite(n)) return '—';
+    const d = decimals === undefined ? 2 : decimals;
+    let s = n.toFixed(d);
+    if (s === '-0.00' || s === '-0.0' || s === '-0') s = s.slice(1);
+    return s;
+  }
+
+  // ============ FORCE CARDS (rebuilt only when forces are added/removed) ============
+  function buildForceCards() {
+    cardsRow.innerHTML = '';
+    forces.forEach(function (f, i) {
+      const colorVar = FORCE_COLORS[i % FORCE_COLORS.length];
+      const card = document.createElement('div');
+      card.className = 'input-card panel-8bit';
+      card.innerHTML =
+        '<div class="input-card-head">' +
+          '<span class="input-name"><span class="force-swatch" style="background:var(' + colorVar + ');"></span>Force ' + f.name + '</span>' +
+          '<button class="card-remove" type="button" aria-label="Remove force ' + f.name + '">&times;</button>' +
+        '</div>' +
+        '<div class="comp-row"><span class="comp-label">mass</span><input type="range" class="comp-slider" data-key="mass" style="--thumb-color:var(' + colorVar + ');" min="0" max="500" step="5" value="' + f.mass + '" /><input type="text" class="comp-value mono" data-key="massText" value="' + fmt(f.mass, 0) + ' g" /></div>' +
+        '<div class="comp-row"><span class="comp-label">angle</span><input type="range" class="comp-slider" data-key="angle" style="--thumb-color:var(' + colorVar + ');" min="0" max="359" step="1" value="' + f.angle + '" /><input type="text" class="comp-value mono" data-key="angleText" value="' + fmt(f.angle, 0) + '&deg;" /></div>';
+      cardsRow.appendChild(card);
+
+      const massSlider = card.querySelector('[data-key="mass"]');
+      const massText = card.querySelector('[data-key="massText"]');
+      const angleSlider = card.querySelector('[data-key="angle"]');
+      const angleText = card.querySelector('[data-key="angleText"]');
+      const removeBtn = card.querySelector('.card-remove');
+
+      massSlider.addEventListener('input', function () {
+        f.mass = parseFloat(massSlider.value);
+        massText.value = fmt(f.mass, 0) + ' g';
+        onForcesChanged();
+      });
+      massText.addEventListener('change', function () {
+        const parsed = parseFloat(massText.value);
+        if (!isNaN(parsed)) { f.mass = Math.max(0, Math.min(500, parsed)); massSlider.value = String(f.mass); }
+        massText.value = fmt(f.mass, 0) + ' g';
+        onForcesChanged();
+      });
+      angleSlider.addEventListener('input', function () {
+        f.angle = parseFloat(angleSlider.value);
+        angleText.value = fmt(f.angle, 0) + '°';
+        onForcesChanged();
+      });
+      angleText.addEventListener('change', function () {
+        const parsed = parseFloat(angleText.value);
+        if (!isNaN(parsed)) { f.angle = ((parsed % 360) + 360) % 360; angleSlider.value = String(f.angle); }
+        angleText.value = fmt(f.angle, 0) + '°';
+        onForcesChanged();
+      });
+      removeBtn.addEventListener('click', function () {
+        if (forces.length <= MIN_FORCES) return;
+        forces.splice(i, 1);
+        buildForceCards();
+        onForcesChanged();
+      });
+    });
+    removeForceBtn.disabled = forces.length <= MIN_FORCES;
+    addForceBtn.disabled = forces.length >= MAX_FORCES;
+  }
+
+  addForceBtn.addEventListener('click', function () {
+    if (forces.length >= MAX_FORCES) return;
+    const nextName = String.fromCharCode('A'.charCodeAt(0) + forces.length);
+    const angle = Math.round((forces.length * 137.5) % 360);
+    forces.push({ name: nextName, mass: 100, angle: angle });
+    buildForceCards();
+    onForcesChanged();
+  });
+  removeForceBtn.addEventListener('click', function () {
+    if (forces.length <= MIN_FORCES) return;
+    forces.pop();
+    buildForceCards();
+    onForcesChanged();
+  });
+  resetBtn.addEventListener('click', function () {
+    forces = [
+      { name: 'A', mass: 100, angle: 0 },
+      { name: 'B', mass: 100, angle: 120 },
+      { name: 'C', mass: 100, angle: 240 },
+    ];
+    buildForceCards();
+    ringPos = { x: 0, y: 0 };
+    ringTarget = { x: 0, y: 0 };
+    onForcesChanged();
+  });
+  equilibrantChip.addEventListener('click', function () {
+    showEquilibrant = !showEquilibrant;
+    equilibrantChip.classList.toggle('is-active', showEquilibrant);
+    equilibrantChip.setAttribute('aria-pressed', String(showEquilibrant));
+    drawScene();
+  });
+
+  // ============ RING FOLLOW ANIMATION (single shared loop, one target) ============
+  function ensureRingLoop() {
+    if (reduceMotion) { ringPos = { x: ringTarget.x, y: ringTarget.y }; drawScene(); return; }
+    if (!ringLoopActive) { ringLoopActive = true; requestAnimationFrame(tickRing); }
+  }
+  function tickRing() {
+    const dx = ringTarget.x - ringPos.x, dy = ringTarget.y - ringPos.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.3) {
+      ringPos.x = ringTarget.x; ringPos.y = ringTarget.y;
+      ringLoopActive = false;
+      drawScene();
+      return;
+    }
+    ringPos.x += dx * 0.18;
+    ringPos.y += dy * 0.18;
+    drawScene();
+    requestAnimationFrame(tickRing);
+  }
+
+  // ============ MAX DISPLACEMENT MAPPING ============
+  const FORCE_SCALE_N = 2.5;      // N -- net force that produces ~76% of max displacement
+  function computeRingTarget(tableRadiusPx, net) {
+    const maxDispPx = tableRadiusPx * 0.5;
+    const dispPx = maxDispPx * Math.tanh(net.mag / FORCE_SCALE_N);
+    const rad = net.angle * Math.PI / 180;
+    return { x: dispPx * Math.cos(rad), y: dispPx * Math.sin(rad) };
+  }
+
+  // ============ CANVAS SIZING ============
+  function resizeCanvas() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    onForcesChanged();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ============ DRAWING HELPERS ============
+  function css(varName) { return getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); }
+
+  function drawArrow(x1, y1, x2, y2, color, lineWidth) {
+    const headLen = 10;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineWidth || 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 7), y2 - headLen * Math.sin(angle - Math.PI / 7));
+    ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 7), y2 - headLen * Math.sin(angle + Math.PI / 7));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ============ MASTER DRAW ============
+  function drawScene() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    if (w < 1 || h < 1) return;
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const tableRadius = Math.min(w, h) * 0.34;
+    // world (math-standard, y-up) -> screen (y-down) helpers
+    const toScreen = function (x, y) { return { sx: cx + x, sy: cy - y }; };
+
+    // ---- table surface ----
+    ctx.save();
+    ctx.fillStyle = css('--surface-2');
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, tableRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = css('--line-bright');
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, tableRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // ---- protractor ticks ----
+    ctx.save();
+    ctx.strokeStyle = css('--ink-faint');
+    ctx.fillStyle = css('--ink-faint');
+    ctx.font = '700 9px ' + getComputedStyle(document.body).fontFamily;
+    for (let deg = 0; deg < 360; deg += 10) {
+      const rad = deg * Math.PI / 180;
+      const major = deg % 30 === 0;
+      const tickLen = major ? 9 : 4;
+      const p1 = toScreen(Math.cos(rad) * tableRadius, Math.sin(rad) * tableRadius);
+      const p2 = toScreen(Math.cos(rad) * (tableRadius + tickLen), Math.sin(rad) * (tableRadius + tickLen));
+      ctx.lineWidth = major ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(p1.sx, p1.sy);
+      ctx.lineTo(p2.sx, p2.sy);
+      ctx.stroke();
+      if (major) {
+        const lp = toScreen(Math.cos(rad) * (tableRadius + 20), Math.sin(rad) * (tableRadius + 20));
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(deg) + '°', lp.sx, lp.sy);
+      }
+    }
+    ctx.restore();
+
+    // ---- true-center reference crosshair ----
+    ctx.save();
+    ctx.strokeStyle = css('--ink-faint');
+    ctx.globalAlpha = 0.6;
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy);
+    ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
+    ctx.stroke();
+    ctx.restore();
+
+    // ---- net force (world units, Newtons) ----
+    const net = netForce(forces);
+
+    // ---- strings + pulleys + weight hangers ----
+    const ringScreen = toScreen(ringPos.x, ringPos.y);
+    forces.forEach(function (f, i) {
+      const colorVar = FORCE_COLORS[i % FORCE_COLORS.length];
+      const color = css(colorVar);
+      const rad = f.angle * Math.PI / 180;
+      const pulley = toScreen(Math.cos(rad) * tableRadius, Math.sin(rad) * tableRadius);
+
+      // string from pulley to ring
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.moveTo(pulley.sx, pulley.sy);
+      ctx.lineTo(ringScreen.sx, ringScreen.sy);
+      ctx.stroke();
+      ctx.restore();
+
+      // pulley marker
+      ctx.save();
+      ctx.fillStyle = css('--surface');
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(pulley.sx, pulley.sy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // hanging weight icon, just beyond the rim along the same radial line
+      const hangerBase = toScreen(Math.cos(rad) * (tableRadius + 26), Math.sin(rad) * (tableRadius + 26));
+      const hgt = 8 + (f.mass / 500) * 26;
+      ctx.save();
+      ctx.translate(hangerBase.sx, hangerBase.sy);
+      ctx.rotate(-rad + Math.PI / 2);
+      ctx.fillStyle = color;
+      ctx.fillRect(-7, 0, 14, hgt);
+      ctx.restore();
+
+      // force label + mass, placed just outside the weight icon
+      const labelPt = toScreen(Math.cos(rad) * (tableRadius + 26 + hgt + 14), Math.sin(rad) * (tableRadius + 26 + hgt + 14));
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.font = '700 11px ' + getComputedStyle(document.body).fontFamily;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(f.name + ': ' + fmt(f.mass, 0) + 'g', labelPt.sx, labelPt.sy);
+      ctx.restore();
+    });
+
+    // ---- the ring itself ----
+    let ringColor;
+    if (net.mag < BALANCE_EPS) ringColor = css('--positive');
+    else if (net.mag < MARGINAL_EPS) ringColor = css('--gold');
+    else ringColor = css('--danger');
+    ctx.save();
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.arc(ringScreen.sx, ringScreen.sy, 15, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // ---- resultant vector (net force), drawn from the ring ----
+    if (net.mag >= BALANCE_EPS) {
+      const vecScale = 26; // px per Newton, purely for arrow length legibility
+      const len = Math.min(net.mag * vecScale, tableRadius * 0.6);
+      const rad = net.angle * Math.PI / 180;
+      const tip = toScreen(ringPos.x + Math.cos(rad) * len, ringPos.y + Math.sin(rad) * len);
+      drawArrow(ringScreen.sx, ringScreen.sy, tip.sx, tip.sy, css('--danger'), 3);
+    }
+
+    // ---- equilibrant vector (dashed), optional ----
+    if (showEquilibrant && net.mag >= BALANCE_EPS) {
+      const eq = equilibrantOf(net);
+      const vecScale = 26;
+      const len = Math.min(eq.mag * vecScale, tableRadius * 0.6);
+      const rad = eq.angle * Math.PI / 180;
+      const tip = toScreen(ringPos.x + Math.cos(rad) * len, ringPos.y + Math.sin(rad) * len);
+      ctx.save();
+      ctx.setLineDash([6, 5]);
+      drawArrow(ringScreen.sx, ringScreen.sy, tip.sx, tip.sy, css('--positive'), 3);
+      ctx.restore();
+    }
+  }
+
+  // ============ READOUTS ============
+  function onForcesChanged() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const tableRadius = Math.min(rect.width, rect.height) * 0.34;
+    const net = netForce(forces);
+    ringTarget = computeRingTarget(tableRadius, net);
+    ensureRingLoop();
+    updateReadouts(net);
+    drawScene();
+  }
+
+  function updateReadouts(net) {
+    statFx.textContent = fmt(net.fx) + ' N';
+    statFy.textContent = fmt(net.fy) + ' N';
+    statMag.textContent = fmt(net.mag) + ' N';
+    statAngle.textContent = net.mag >= BALANCE_EPS ? fmt(net.angle, 1) + '°' : '—';
+
+    const terms = forces.map(function (f) { return { name: f.name, F: forceOfMass(f.mass), angle: f.angle }; });
+    trigFx.textContent = '(' + terms.map(function (t) { return fmt(t.F) + '×cos' + fmt(t.angle, 0) + '°'; }).join(' + ') + ') = ' + fmt(net.fx) + ' N';
+    trigFy.textContent = '(' + terms.map(function (t) { return fmt(t.F) + '×sin' + fmt(t.angle, 0) + '°'; }).join(' + ') + ') = ' + fmt(net.fy) + ' N';
+    trigMag.textContent = '√(' + fmt(net.fx) + '² + ' + fmt(net.fy) + '²) = ' + fmt(net.mag) + ' N';
+
+    const balanced = net.mag < BALANCE_EPS;
+    const marginal = !balanced && net.mag < MARGINAL_EPS;
+
+    if (balanced) {
+      verdictValue.textContent = 'Balanced';
+      verdictValue.className = 'vb-value mono accent-positive';
+      verdictSub.innerHTML = 'The ring sits at the center &mdash; every pull cancels. This is static equilibrium: &Sigma;F = 0.';
+      trigEqMag.textContent = '0.00 N';
+      trigEqAngle.textContent = '—';
+      trigEqMass.textContent = 'nothing needed — already balanced';
+      explainText.innerHTML = 'With <strong>' + forces.length + '</strong> forces balanced, the table is in equilibrium. Nudge any mass or angle slider and watch the ring get pulled off-center in the direction of the new net force.';
+    } else {
+      const eq = equilibrantOf(net);
+      const eqMassG = (eq.mag / G) * 1000;
+      verdictValue.textContent = marginal ? 'Close, not quite' : 'Unbalanced';
+      verdictValue.className = 'vb-value mono accent-danger';
+      verdictSub.innerHTML = 'Net pull of <strong>' + fmt(net.mag) + ' N</strong> toward <strong>' + fmt(net.angle, 1) + '°</strong> &mdash; that\'s why the ring drifted that way.';
+      trigEqMag.textContent = fmt(eq.mag) + ' N';
+      trigEqAngle.textContent = fmt(eq.angle, 1) + '°';
+      trigEqMass.textContent = fmt(eqMassG, 1) + ' g at ' + fmt(eq.angle, 1) + '°';
+      explainText.innerHTML = 'The ring settles off-center, pulled toward <strong>' + fmt(net.angle, 1) + '°</strong> &mdash; the direction of the leftover (net) force. To re-balance the table, you\'d need to hang <strong>' + fmt(eqMassG, 1) + ' g</strong> at <strong>' + fmt(eq.angle, 1) + '°</strong>, the <em>equilibrant</em>: a pull exactly equal and opposite to everything else combined. (The ring\'s displacement here is exaggerated and capped for clarity &mdash; a truly free ring would just accelerate off the table; this settles at an offset proportional to the net force so you can read both its size and direction at a glance.)';
+    }
+  }
+
+  buildForceCards();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
