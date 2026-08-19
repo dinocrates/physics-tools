@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vector Balancing Lab</title>
-<meta name="description" content="The classic force-table lab: hang masses over pulleys around a ring and see whether their vector sum leaves it balanced at the center." />
+<meta name="description" content="The classic force-table lab: hang masses over pulleys around a ring and see whether their vector sum leaves it balanced at the center. Drag the vectors directly, or take on the balancing challenges." />
 <script>
   (function () {
     try {
@@ -185,6 +185,9 @@
   .chip:hover { border-color: var(--accent); color: var(--accent); }
   .chip:active { transform: translate(3px, 3px); box-shadow: none; }
   .chip.is-active { background: var(--accent); border-color: var(--bg); color: #fff; }
+  .chip.is-solved { border-color: var(--positive); color: var(--positive); }
+  .chip.is-solved.is-active { background: var(--positive); color: #fff; }
+  .chip-small { padding: 0.4rem 0.7rem; font-size: 0.76rem; min-width: 2.4rem; text-align: center; }
 
   /* ---------- viewport ---------- */
   .viewport-panel { padding: 0.9rem; }
@@ -242,7 +245,24 @@
     border: 2px solid var(--line-bright);
     overflow: hidden;
   }
-  .scene-wrap canvas { display: block; width: 100%; height: 100%; }
+  .scene-wrap canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* ---------- challenge panel ---------- */
+  .challenge-panel { padding: 1rem 1.2rem 1.2rem; }
+  .challenge-picker { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 0.9rem; }
+  .challenge-desc { font-size: 0.88rem; color: var(--ink-soft); margin: 0 0 0.9rem; }
+  .challenge-desc strong { color: var(--ink); }
+  .challenge-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
+  .challenge-feedback {
+    font-size: 0.86rem;
+    font-weight: 700;
+    padding: 0.6rem 0.8rem;
+    border: 2px dashed var(--line-bright);
+    min-height: 1.4em;
+  }
+  .challenge-feedback.accent-positive { color: var(--positive); border-color: var(--positive); }
+  .challenge-feedback.accent-danger { color: var(--danger); border-color: var(--danger); }
+  .challenge-feedback:empty { display: none; }
 
   /* ---------- input cards ---------- */
   .cards-row {
@@ -251,16 +271,19 @@
     gap: 1.2rem;
   }
   .input-card { padding: 1.1rem 1.2rem 1.2rem; }
+  .input-card.is-locked { opacity: 0.82; }
   .input-card-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.6rem;
-    margin-bottom: 0.8rem;
+    margin-bottom: 0.3rem;
   }
   .input-name { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
   .force-swatch { display: inline-block; width: 0.85rem; height: 0.85rem; border: 2px solid var(--bg); box-shadow: 1px 1px 0 var(--shadow-color); flex: none; }
   .input-sub { font-size: 0.78rem; color: var(--ink-faint); }
+  .card-sublabel { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; margin-bottom: 0.6rem; color: var(--ink-faint); }
+  .card-sublabel.is-target { color: var(--accent); }
   .card-remove {
     flex: none;
     background: transparent;
@@ -286,6 +309,7 @@
     border: 2px solid var(--line-bright);
     cursor: pointer;
   }
+  input[type="range"].comp-slider:disabled { opacity: 0.45; cursor: not-allowed; }
   input[type="range"].comp-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 0.9rem;
@@ -313,6 +337,7 @@
     text-align: right;
     flex: none;
   }
+  input.comp-value:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* ---------- readouts / formula panel ---------- */
   .readout-panel { padding: 1.2rem 1.4rem 1.4rem; }
@@ -387,19 +412,37 @@
       <button class="theme-toggle" id="themeToggleBtn" type="button" title="Cycle theme: auto / light / dark">&#9681; Auto</button>
     </div>
     <h1>Vector Balancing Lab</h1>
-    <p>The classic force table: masses hang over pulleys around a ring, each pulling with a force equal to its weight. The ring sits still at the center only when every pull cancels out &mdash; when the vector sum of the forces is zero. Drag any mass or angle and watch it drift.</p>
+    <p id="introText">The classic force table: masses hang over pulleys around a ring, each pulling with a force equal to its weight. The ring sits still at the center only when every pull cancels out &mdash; when the vector sum of the forces is zero. Drag a pulley or a weight to change its angle, or use the sliders.</p>
   </header>
+
+  <div class="mode-chips" id="modeChips" role="group" aria-label="Free play or challenges"></div>
+
+  <section class="challenge-panel panel-8bit" aria-label="Challenges" id="challengePanel" style="display:none;">
+    <div class="challenge-picker" id="challengePicker" role="group" aria-label="Pick a challenge"></div>
+    <p class="challenge-desc" id="challengeDesc"></p>
+    <div class="challenge-actions">
+      <button class="btn-primary" id="submitBtn" type="button">Submit answer</button>
+      <button class="btn-ghost" id="revealBtn" type="button">Reveal answer</button>
+      <button class="btn-ghost" id="resetChallengeBtn" type="button">&#8635; Reset challenge</button>
+    </div>
+    <div class="challenge-feedback" id="challengeFeedback"></div>
+  </section>
 
   <section class="viewport-panel panel-8bit" aria-label="Force table">
     <div class="viewport-toolbar">
-      <div class="viewport-hint">Ring color shows how far from equilibrium you are</div>
-      <div class="viewport-actions">
+      <div class="viewport-hint" id="viewportHint">Ring color shows how far from equilibrium you are &mdash; drag any pulley or weight</div>
+      <div class="viewport-actions" id="freePlayActions">
         <div class="mode-chips">
           <button class="chip" id="equilibrantChip" type="button" aria-pressed="false">Show equilibrant</button>
         </div>
         <button class="btn-ghost" id="removeForceBtn" type="button">&minus; Remove force</button>
         <button class="btn-ghost" id="addForceBtn" type="button">+ Add force</button>
         <button class="btn-ghost" id="resetBtn" type="button">&#8635; Reset</button>
+      </div>
+      <div class="viewport-actions" id="challengeViewportActions" style="display:none;">
+        <div class="mode-chips">
+          <button class="chip" id="equilibrantChipC" type="button" aria-pressed="false">Show equilibrant</button>
+        </div>
       </div>
     </div>
     <div class="scene-wrap" id="sceneWrap">
@@ -434,7 +477,7 @@
     <p class="explain-text" id="explainText"></p>
   </section>
 
-  <footer>Drag any mass or angle &mdash; the ring always shows exactly where that leaves you</footer>
+  <footer>Drag any pulley or weight, or use the sliders &mdash; the ring always shows exactly where that leaves you</footer>
 </div>
 
 <script>
@@ -481,18 +524,41 @@
     return { mag: net.mag, angle: angle };
   }
 
-  const BALANCE_EPS = 0.05;   // N -- below this, call it balanced
+  const BALANCE_EPS = 0.05;   // N -- below this, call it balanced (also the challenge pass threshold)
   const MARGINAL_EPS = 0.3;   // N -- below this, call it close
+
+  // ============ CHALLENGES ============
+  const CHALLENGES = [
+    { given: [{ mass: 150, angle: 0 }], desc: 'One force is already on the table. Figure out the mass and angle of a second force that balances it.' },
+    { given: [{ mass: 120, angle: 40 }], desc: 'Same idea, less friendly numbers &mdash; the answer isn\'t a multiple of 10.' },
+    { given: [{ mass: 100, angle: 0 }, { mass: 100, angle: 90 }], desc: 'Two equal forces, 90&deg; apart. Find the third force that balances both at once.' },
+    { given: [{ mass: 150, angle: 0 }, { mass: 80, angle: 90 }], desc: 'Two perpendicular forces of different size this time.' },
+    { given: [{ mass: 130, angle: 20 }, { mass: 90, angle: 110 }], desc: 'Two forces at an oblique angle &mdash; no right angle to lean on.' },
+    { given: [{ mass: 100, angle: 0 }, { mass: 80, angle: 100 }, { mass: 60, angle: 220 }], desc: 'Three given forces now. Find the fourth that balances all of them.' },
+    { given: [{ mass: 140, angle: 15 }, { mass: 90, angle: 140 }, { mass: 70, angle: 260 }], desc: 'Three forces, fully spread out. The full workout.' },
+  ];
+  // 200deg is chosen to never coincide with a given force's angle across the
+  // challenge set below, so the unknown's starting pulley never renders
+  // exactly on top of (and hides) a locked given force
+  const DEFAULT_GUESS = { mass: 50, angle: 200 };
 
   // ============ STATE ============
   const FORCE_COLORS = ['--cyan', '--accent', '--gold', '--ink-soft'];
   const MAX_FORCES = 4, MIN_FORCES = 2;
-  let forces = [
-    { name: 'A', mass: 100, angle: 0 },
-    { name: 'B', mass: 100, angle: 120 },
-    { name: 'C', mass: 100, angle: 240 },
-  ];
+  const DEFAULT_FORCES = function () {
+    return [
+      { name: 'A', mass: 100, angle: 0 },
+      { name: 'B', mass: 100, angle: 120 },
+      { name: 'C', mass: 100, angle: 240 },
+    ];
+  };
+  let forces = DEFAULT_FORCES();
   let showEquilibrant = false;
+  let mode = 'free'; // 'free' | 'challenge'
+  let challengeIndex = 0;
+  const solvedChallenges = new Set();
+  let draggingIndex = -1;
+  let forceCardRefs = [];
 
   // ring animation state: single shared target + single guarded rAF loop
   let ringPos = { x: 0, y: 0 };   // world units, origin = table center
@@ -509,6 +575,19 @@
   const removeForceBtn = document.getElementById('removeForceBtn');
   const resetBtn = document.getElementById('resetBtn');
   const equilibrantChip = document.getElementById('equilibrantChip');
+  const equilibrantChipC = document.getElementById('equilibrantChipC');
+  const modeChipsHost = document.getElementById('modeChips');
+  const challengePanel = document.getElementById('challengePanel');
+  const challengePicker = document.getElementById('challengePicker');
+  const challengeDesc = document.getElementById('challengeDesc');
+  const challengeFeedback = document.getElementById('challengeFeedback');
+  const submitBtn = document.getElementById('submitBtn');
+  const revealBtn = document.getElementById('revealBtn');
+  const resetChallengeBtn = document.getElementById('resetChallengeBtn');
+  const freePlayActions = document.getElementById('freePlayActions');
+  const challengeViewportActions = document.getElementById('challengeViewportActions');
+  const viewportHint = document.getElementById('viewportHint');
+  const introText = document.getElementById('introText');
 
   const verdictValue = document.getElementById('verdictValue');
   const verdictSub = document.getElementById('verdictSub');
@@ -533,20 +612,148 @@
     return s;
   }
 
-  // ============ FORCE CARDS (rebuilt only when forces are added/removed) ============
+  // ============ MODE SWITCH ============
+  const MODES = [
+    { id: 'free', label: 'Free Play' },
+    { id: 'challenge', label: 'Challenges' },
+  ];
+  const modeChipEls = MODES.map(function (m) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = m.label;
+    chip.addEventListener('click', function () { setMode(m.id); });
+    modeChipsHost.appendChild(chip);
+    return chip;
+  });
+  function updateModeChips() {
+    modeChipEls.forEach(function (chip, i) { chip.classList.toggle('is-active', MODES[i].id === mode); });
+  }
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m;
+    updateModeChips();
+    challengePanel.style.display = mode === 'challenge' ? '' : 'none';
+    freePlayActions.style.display = mode === 'challenge' ? 'none' : '';
+    challengeViewportActions.style.display = mode === 'challenge' ? '' : 'none';
+    if (mode === 'challenge') {
+      introText.textContent = 'Two or three forces are already pinned in place. Figure out the mass and angle of the remaining force that brings the ring to rest at the center, then submit your answer.';
+      viewportHint.textContent = 'Locked (given) forces can\'t be dragged — only the one you\'re solving for';
+      enterChallenge(challengeIndex);
+    } else {
+      introText.textContent = 'The classic force table: masses hang over pulleys around a ring, each pulling with a force equal to its weight. The ring sits still at the center only when every pull cancels out — when the vector sum of the forces is zero. Drag a pulley or a weight to change its angle, or use the sliders.';
+      viewportHint.textContent = 'Ring color shows how far from equilibrium you are — drag any pulley or weight';
+      forces = DEFAULT_FORCES();
+      buildForceCards();
+      ringPos = { x: 0, y: 0 };
+      ringTarget = { x: 0, y: 0 };
+      onForcesChanged();
+    }
+  }
+
+  // ============ CHALLENGE PICKER ============
+  function buildChallengePicker() {
+    challengePicker.innerHTML = '';
+    CHALLENGES.forEach(function (c, i) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip chip-small';
+      chip.textContent = (solvedChallenges.has(i) ? '✓ ' : '') + (i + 1);
+      chip.addEventListener('click', function () { enterChallenge(i); });
+      challengePicker.appendChild(chip);
+    });
+    updateChallengePicker();
+  }
+  function updateChallengePicker() {
+    Array.prototype.forEach.call(challengePicker.children, function (chip, i) {
+      chip.classList.toggle('is-active', i === challengeIndex);
+      chip.classList.toggle('is-solved', solvedChallenges.has(i));
+      chip.textContent = (solvedChallenges.has(i) ? '✓ ' : '') + (i + 1);
+    });
+  }
+
+  function enterChallenge(index) {
+    challengeIndex = index;
+    const c = CHALLENGES[index];
+    const givenForces = c.given.map(function (g, i) {
+      return { name: String.fromCharCode('A'.charCodeAt(0) + i), mass: g.mass, angle: g.angle, locked: true };
+    });
+    const unknownName = String.fromCharCode('A'.charCodeAt(0) + givenForces.length);
+    forces = givenForces.concat([{ name: unknownName, mass: DEFAULT_GUESS.mass, angle: DEFAULT_GUESS.angle, locked: false }]);
+    showEquilibrant = false;
+    equilibrantChip.classList.remove('is-active');
+    equilibrantChip.setAttribute('aria-pressed', 'false');
+    equilibrantChipC.classList.remove('is-active');
+    equilibrantChipC.setAttribute('aria-pressed', 'false');
+    challengeDesc.innerHTML = '<strong>Challenge ' + (index + 1) + ' of ' + CHALLENGES.length + ':</strong> ' + c.desc;
+    challengeFeedback.textContent = '';
+    challengeFeedback.className = 'challenge-feedback';
+    buildForceCards();
+    buildChallengePicker();
+    ringPos = { x: 0, y: 0 };
+    ringTarget = { x: 0, y: 0 };
+    onForcesChanged();
+  }
+
+  function submitChallenge() {
+    const net = netForce(forces);
+    const correct = net.mag < BALANCE_EPS;
+    if (correct) {
+      solvedChallenges.add(challengeIndex);
+      challengeFeedback.textContent = '✓ Correct! The net force is essentially zero — the ring is balanced.';
+      challengeFeedback.className = 'challenge-feedback accent-positive';
+    } else {
+      challengeFeedback.textContent = 'Not quite — net force is still ' + fmt(net.mag) + ' N. Watch the ring color and keep adjusting.';
+      challengeFeedback.className = 'challenge-feedback accent-danger';
+    }
+    updateChallengePicker();
+  }
+
+  function revealChallengeAnswer() {
+    const c = CHALLENGES[challengeIndex];
+    const givenNet = netForce(c.given);
+    const eq = equilibrantOf(givenNet);
+    const unknown = forces[forces.length - 1];
+    unknown.mass = Math.round((eq.mag / G) * 1000 * 10) / 10;
+    unknown.angle = Math.round(eq.angle * 10) / 10;
+    buildForceCards();
+    onForcesChanged();
+    challengeFeedback.textContent = 'Answer revealed: ' + fmt(unknown.mass, 1) + ' g at ' + fmt(unknown.angle, 1) + '°. Click Submit to confirm.';
+    challengeFeedback.className = 'challenge-feedback';
+  }
+
+  submitBtn.addEventListener('click', submitChallenge);
+  revealBtn.addEventListener('click', revealChallengeAnswer);
+  resetChallengeBtn.addEventListener('click', function () { enterChallenge(challengeIndex); });
+  equilibrantChipC.addEventListener('click', function () {
+    showEquilibrant = !showEquilibrant;
+    equilibrantChipC.classList.toggle('is-active', showEquilibrant);
+    equilibrantChipC.setAttribute('aria-pressed', String(showEquilibrant));
+    drawScene();
+  });
+
+  // ============ FORCE CARDS (rebuilt only when forces are added/removed/entered) ============
   function buildForceCards() {
     cardsRow.innerHTML = '';
+    forceCardRefs = [];
+    draggingIndex = -1;
     forces.forEach(function (f, i) {
       const colorVar = FORCE_COLORS[i % FORCE_COLORS.length];
+      const locked = !!f.locked;
       const card = document.createElement('div');
-      card.className = 'input-card panel-8bit';
+      card.className = 'input-card panel-8bit' + (locked ? ' is-locked' : '');
+      const removeHtml = (mode === 'free' && !locked) ? '<button class="card-remove" type="button" aria-label="Remove force ' + f.name + '">&times;</button>' : '';
+      const sublabelHtml = mode === 'challenge'
+        ? '<div class="card-sublabel' + (locked ? '' : ' is-target') + '">' + (locked ? 'given — locked' : 'your answer') + '</div>'
+        : '';
       card.innerHTML =
         '<div class="input-card-head">' +
           '<span class="input-name"><span class="force-swatch" style="background:var(' + colorVar + ');"></span>Force ' + f.name + '</span>' +
-          '<button class="card-remove" type="button" aria-label="Remove force ' + f.name + '">&times;</button>' +
+          removeHtml +
         '</div>' +
-        '<div class="comp-row"><span class="comp-label">mass</span><input type="range" class="comp-slider" data-key="mass" style="--thumb-color:var(' + colorVar + ');" min="0" max="500" step="5" value="' + f.mass + '" /><input type="text" class="comp-value mono" data-key="massText" value="' + fmt(f.mass, 0) + ' g" /></div>' +
-        '<div class="comp-row"><span class="comp-label">angle</span><input type="range" class="comp-slider" data-key="angle" style="--thumb-color:var(' + colorVar + ');" min="0" max="359" step="1" value="' + f.angle + '" /><input type="text" class="comp-value mono" data-key="angleText" value="' + fmt(f.angle, 0) + '&deg;" /></div>';
+        sublabelHtml +
+        '<div class="comp-row"><span class="comp-label">mass</span><input type="range" class="comp-slider" data-key="mass" style="--thumb-color:var(' + colorVar + ');" min="0" max="500" step="5" value="' + f.mass + '"' + (locked ? ' disabled' : '') + ' /><input type="text" class="comp-value mono" data-key="massText" value="' + fmt(f.mass, 0) + ' g"' + (locked ? ' disabled' : '') + ' /></div>' +
+        '<div class="comp-row"><span class="comp-label">angle</span><input type="range" class="comp-slider" data-key="angle" style="--thumb-color:var(' + colorVar + ');" min="0" max="359" step="1" value="' + f.angle + '"' + (locked ? ' disabled' : '') + ' /><input type="text" class="comp-value mono" data-key="angleText" value="' + fmt(f.angle, 0) + '&deg;"' + (locked ? ' disabled' : '') + ' /></div>';
       cardsRow.appendChild(card);
 
       const massSlider = card.querySelector('[data-key="mass"]');
@@ -555,34 +762,40 @@
       const angleText = card.querySelector('[data-key="angleText"]');
       const removeBtn = card.querySelector('.card-remove');
 
-      massSlider.addEventListener('input', function () {
-        f.mass = parseFloat(massSlider.value);
-        massText.value = fmt(f.mass, 0) + ' g';
-        onForcesChanged();
-      });
-      massText.addEventListener('change', function () {
-        const parsed = parseFloat(massText.value);
-        if (!isNaN(parsed)) { f.mass = Math.max(0, Math.min(500, parsed)); massSlider.value = String(f.mass); }
-        massText.value = fmt(f.mass, 0) + ' g';
-        onForcesChanged();
-      });
-      angleSlider.addEventListener('input', function () {
-        f.angle = parseFloat(angleSlider.value);
-        angleText.value = fmt(f.angle, 0) + '°';
-        onForcesChanged();
-      });
-      angleText.addEventListener('change', function () {
-        const parsed = parseFloat(angleText.value);
-        if (!isNaN(parsed)) { f.angle = ((parsed % 360) + 360) % 360; angleSlider.value = String(f.angle); }
-        angleText.value = fmt(f.angle, 0) + '°';
-        onForcesChanged();
-      });
-      removeBtn.addEventListener('click', function () {
-        if (forces.length <= MIN_FORCES) return;
-        forces.splice(i, 1);
-        buildForceCards();
-        onForcesChanged();
-      });
+      forceCardRefs.push({ massSlider: massSlider, massText: massText, angleSlider: angleSlider, angleText: angleText });
+
+      if (!locked) {
+        massSlider.addEventListener('input', function () {
+          f.mass = parseFloat(massSlider.value);
+          massText.value = fmt(f.mass, 0) + ' g';
+          onForcesChanged();
+        });
+        massText.addEventListener('change', function () {
+          const parsed = parseFloat(massText.value);
+          if (!isNaN(parsed)) { f.mass = Math.max(0, Math.min(500, parsed)); massSlider.value = String(f.mass); }
+          massText.value = fmt(f.mass, 0) + ' g';
+          onForcesChanged();
+        });
+        angleSlider.addEventListener('input', function () {
+          f.angle = parseFloat(angleSlider.value);
+          angleText.value = fmt(f.angle, 0) + '°';
+          onForcesChanged();
+        });
+        angleText.addEventListener('change', function () {
+          const parsed = parseFloat(angleText.value);
+          if (!isNaN(parsed)) { f.angle = ((parsed % 360) + 360) % 360; angleSlider.value = String(f.angle); }
+          angleText.value = fmt(f.angle, 0) + '°';
+          onForcesChanged();
+        });
+      }
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function () {
+          if (forces.length <= MIN_FORCES) return;
+          forces.splice(i, 1);
+          buildForceCards();
+          onForcesChanged();
+        });
+      }
     });
     removeForceBtn.disabled = forces.length <= MIN_FORCES;
     addForceBtn.disabled = forces.length >= MAX_FORCES;
@@ -603,11 +816,7 @@
     onForcesChanged();
   });
   resetBtn.addEventListener('click', function () {
-    forces = [
-      { name: 'A', mass: 100, angle: 0 },
-      { name: 'B', mass: 100, angle: 120 },
-      { name: 'C', mass: 100, angle: 240 },
-    ];
+    forces = DEFAULT_FORCES();
     buildForceCards();
     ringPos = { x: 0, y: 0 };
     ringTarget = { x: 0, y: 0 };
@@ -649,6 +858,15 @@
     return { x: dispPx * Math.cos(rad), y: dispPx * Math.sin(rad) };
   }
 
+  // ============ SHARED TABLE GEOMETRY (used by drawing AND drag hit-testing) ============
+  function getTableGeometry() {
+    const rect = sceneWrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const cx = w / 2, cy = h / 2;
+    const tableRadius = Math.min(w, h) * 0.34;
+    return { w: w, h: h, cx: cx, cy: cy, tableRadius: tableRadius };
+  }
+
   // ============ CANVAS SIZING ============
   function resizeCanvas() {
     const rect = sceneWrap.getBoundingClientRect();
@@ -659,6 +877,68 @@
     onForcesChanged();
   }
   window.addEventListener('resize', resizeCanvas);
+
+  // ============ CLICK-AND-DRAG ON THE VECTORS (angle only; mass stays slider-only) ============
+  function hitTestForce(mx, my) {
+    const geo = getTableGeometry();
+    let best = -1, bestDist = Infinity;
+    forces.forEach(function (f, i) {
+      if (f.locked) return;
+      const rad = f.angle * Math.PI / 180;
+      const pulley = { sx: geo.cx + Math.cos(rad) * geo.tableRadius, sy: geo.cy - Math.sin(rad) * geo.tableRadius };
+      const hgt = 8 + (f.mass / 500) * 26;
+      const hangerDist = geo.tableRadius + 26 + hgt / 2;
+      const hanger = { sx: geo.cx + Math.cos(rad) * hangerDist, sy: geo.cy - Math.sin(rad) * hangerDist };
+      const dPulley = Math.hypot(mx - pulley.sx, my - pulley.sy);
+      const dHanger = Math.hypot(mx - hanger.sx, my - hanger.sy);
+      if (dPulley < 16 && dPulley < bestDist) { bestDist = dPulley; best = i; }
+      if (dHanger < 20 && dHanger < bestDist) { bestDist = dHanger; best = i; }
+    });
+    return best;
+  }
+  function angleFromPointer(mx, my) {
+    const geo = getTableGeometry();
+    const dx = mx - geo.cx, dy = my - geo.cy; // screen space, y-down
+    let angle = Math.atan2(-dy, dx) * 180 / Math.PI; // flip y for math (y-up) convention
+    if (angle < 0) angle += 360;
+    return ((Math.round(angle) % 360) + 360) % 360;
+  }
+  function updateAngleFromDrag(index, angle) {
+    const f = forces[index];
+    if (!f || f.locked) return;
+    f.angle = angle;
+    const refs = forceCardRefs[index];
+    if (refs) {
+      refs.angleSlider.value = String(angle);
+      refs.angleText.value = fmt(angle, 0) + '°';
+    }
+    onForcesChanged();
+  }
+  canvas.addEventListener('pointerdown', function (e) {
+    const idx = hitTestForce(e.offsetX, e.offsetY);
+    if (idx !== -1) {
+      draggingIndex = idx;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+    }
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (draggingIndex !== -1) {
+      updateAngleFromDrag(draggingIndex, angleFromPointer(e.offsetX, e.offsetY));
+    } else {
+      canvas.style.cursor = hitTestForce(e.offsetX, e.offsetY) !== -1 ? 'grab' : 'default';
+    }
+  });
+  function endDrag(e) {
+    if (draggingIndex !== -1) {
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+      draggingIndex = -1;
+      canvas.style.cursor = 'default';
+    }
+  }
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
 
   // ============ DRAWING HELPERS ============
   function css(varName) { return getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); }
@@ -686,13 +966,12 @@
 
   // ============ MASTER DRAW ============
   function drawScene() {
-    const rect = sceneWrap.getBoundingClientRect();
-    const w = rect.width, h = rect.height;
+    const geo = getTableGeometry();
+    const w = geo.w, h = geo.h;
     if (w < 1 || h < 1) return;
     ctx.clearRect(0, 0, w, h);
 
-    const cx = w / 2, cy = h / 2;
-    const tableRadius = Math.min(w, h) * 0.34;
+    const cx = geo.cx, cy = geo.cy, tableRadius = geo.tableRadius;
     // world (math-standard, y-up) -> screen (y-down) helpers
     const toScreen = function (x, y) { return { sx: cx + x, sy: cy - y }; };
 
@@ -770,6 +1049,18 @@
       ctx.stroke();
       ctx.restore();
 
+      // drag-highlight halo for the force currently being grabbed
+      if (i === draggingIndex) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(pulley.sx, pulley.sy, 12, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // pulley marker
       ctx.save();
       ctx.fillStyle = css('--surface');
@@ -790,6 +1081,17 @@
       ctx.fillStyle = color;
       ctx.fillRect(-7, 0, 14, hgt);
       ctx.restore();
+
+      // lock glyph for given (non-draggable) forces in challenge mode
+      if (f.locked) {
+        ctx.save();
+        ctx.fillStyle = css('--ink-faint');
+        ctx.font = '700 10px ' + getComputedStyle(document.body).fontFamily;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('\u{1F512}', pulley.sx, pulley.sy - 14);
+        ctx.restore();
+      }
 
       // force label + mass, placed just outside the weight icon
       const labelPt = toScreen(Math.cos(rad) * (tableRadius + 26 + hgt + 14), Math.sin(rad) * (tableRadius + 26 + hgt + 14));
@@ -840,10 +1142,9 @@
 
   // ============ READOUTS ============
   function onForcesChanged() {
-    const rect = sceneWrap.getBoundingClientRect();
-    const tableRadius = Math.min(rect.width, rect.height) * 0.34;
+    const geo = getTableGeometry();
     const net = netForce(forces);
-    ringTarget = computeRingTarget(tableRadius, net);
+    ringTarget = computeRingTarget(geo.tableRadius, net);
     ensureRingLoop();
     updateReadouts(net);
     drawScene();
@@ -870,7 +1171,9 @@
       trigEqMag.textContent = '0.00 N';
       trigEqAngle.textContent = '—';
       trigEqMass.textContent = 'nothing needed — already balanced';
-      explainText.innerHTML = 'With <strong>' + forces.length + '</strong> forces balanced, the table is in equilibrium. Nudge any mass or angle slider and watch the ring get pulled off-center in the direction of the new net force.';
+      explainText.innerHTML = mode === 'challenge'
+        ? 'Looks balanced! Click <strong>Submit answer</strong> above to lock it in.'
+        : 'With <strong>' + forces.length + '</strong> forces balanced, the table is in equilibrium. Nudge any mass or angle &mdash; via the sliders or by dragging a pulley or weight &mdash; and watch the ring get pulled off-center in the direction of the new net force.';
     } else {
       const eq = equilibrantOf(net);
       const eqMassG = (eq.mag / G) * 1000;
@@ -884,6 +1187,7 @@
     }
   }
 
+  updateModeChips();
   buildForceCards();
   resizeCanvas();
 })();
